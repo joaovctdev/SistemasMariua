@@ -382,7 +382,7 @@ function Obras() {
       {obrasDoDia.length > 0 && (
         <div className="programacao-dia-container" style={{ marginTop: '40px' }}>
           <div className="programacao-header">
-            <h2>📅 PROGRAMAÇÃO DO DIA - OBRAS EM ANDAMENTO</h2>
+            <h2>PROGRAMAÇÃO DO DIA - OBRAS EM ANDAMENTO</h2>
             <div style={{ display: 'flex', gap: '10px' }}>
               <button onClick={abrirModalAdicionar} className="btn-download" style={{ background: '#f59e0b' }}>
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -406,7 +406,7 @@ function Obras() {
             <div className="tabela-header-prog">
               <img src="/Logos/Mariua26Cor.png" alt="Logo Mariua" className="logo-tabela" />
               <div className="tabela-title">
-                <h3>🏗️ PROGRAMAÇÃO DE OBRAS</h3>
+                <h3>PROGRAMAÇÃO DE OBRAS</h3>
                 <p>Controle e acompanhamento de Obras - Novembro</p>
                 <p className="data-hoje">Data de hoje: {dataHoje}</p>
               </div>
