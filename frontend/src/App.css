@@ -519,6 +519,88 @@ body {
   color: #fff202;
   text-shadow: 0 0 10px rgba(255, 242, 2, 0.3);
 }
+/* Estilos para campos editáveis na tabela de programação */
+.table-prog-dia input[type="text"] {
+  width: 100%;
+  padding: 6px 8px;
+  border-radius: 4px;
+  font-size: 13px;
+  font-family: inherit;
+  transition: all 0.2s ease;
+}
+
+
+
+
+/* Botão remover */
+.btn-remover-obra {
+  background: #ef4444;
+  color: white;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 16px;
+  transition: all 0.2s ease;
+}
+
+.btn-remover-obra:hover {
+  background: #dc2626;
+  transform: scale(1.1);
+}
+
+/* Seção adicionar obra */
+.adicionar-obra-section {
+  margin-top: 20px;
+  padding: 20px;
+  background: #f8f9fa;
+  border-radius: 10px;
+ 
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.adicionar-obra-section:hover {
+  border-color: #0B9E9F;
+  background: #f0f9f9;
+}
+
+.adicionar-obra-input {
+  flex: 1;
+  padding: 10px 12px;
+  border: 2px solid #ddd;
+  border-radius: 8px;
+  font-size: 14px;
+  transition: all 0.2s ease;
+}
+
+
+.btn-adicionar-obra {
+  background: #10b981;
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.btn-adicionar-obra:hover {
+  background: #059669;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+}
+
+/* Ajuste na coluna de ações */
+.table-prog-dia th:last-child,
+.table-prog-dia td:last-child {
+  text-align: center;
+  width: 80px;
+}
 
 /* CARD VERMELHO - SEGURANÇA */
 .card-purple {
@@ -1285,7 +1367,7 @@ font-size: 48px;
 }
 /* ===== PROGRAMAÇÃO DO DIA ===== */
 .programacao-dia-container {
-  background: white;
+  background: linear-gradient(135deg, #3b3b3b 0%, #090809 100%);
   border-radius: 15px;
   padding: 30px;
   margin-bottom: 30px;
@@ -1300,7 +1382,7 @@ font-size: 48px;
 }
 
 .programacao-header h2 {
-  color: #333;
+  color: white;
   font-size: 24px;
   margin: 0;
 }
@@ -1325,9 +1407,9 @@ font-size: 48px;
 }
 
 .tabela-programacao {
-  background: white;
-  padding: 30px;
+  background: linear-gradient(135deg, #3b3b3b 0%, #090809 100%);
   border-radius: 10px;
+  border: 1px solid white;
 }
 
 .tabela-header-prog {
@@ -1351,7 +1433,7 @@ font-size: 48px;
 }
 
 .tabela-title p {
-  color: #666;
+  color: white;
   margin: 2px 0;
   font-size: 14px;
 }
@@ -1386,25 +1468,26 @@ font-size: 48px;
 }
 
 .table-prog-dia tbody tr:nth-child(even) {
-  background: #f8f9fa;
+  background: #2b2b2b;
 }
 
 .table-prog-dia tbody tr:hover {
   background: #e8f4f5;
+  color: black;
 }
 
 .table-prog-dia td {
-  padding: 12px 10px;
-  color: #333;
+  padding: 13px 10px;
+  color: white;
 }
 
 .status-pill-prog {
-  padding: 4px 12px;
+  padding: 8px 15px;
   border-radius: 15px;
   color: white;
   font-size: 11px;
   font-weight: 600;
-  display: inline-block;
+  display: flex;
 }
 
 /* ===== PÁGINA SEGURANÇA ===== */
@@ -1505,6 +1588,7 @@ font-size: 48px;
 
 .data-table tr:hover {
   background: #f8f9fa;
+  color: black;
 }
 
 .status-pill {
@@ -1622,6 +1706,7 @@ font-size: 48px;
 
 .data-table tr:hover {
   background: #f8f9fa;
+  color: black;
 }
 
 .status-pill {
@@ -1740,6 +1825,7 @@ font-size: 48px;
 
 .data-table tr:hover {
   background: #f8f9fa;
+  color: black;
 }
 
 .status-pill {
