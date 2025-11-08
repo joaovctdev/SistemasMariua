@@ -13,7 +13,7 @@ function Obras() {
   const [showAdicionarModal, setShowAdicionarModal] = useState(false);
   const [atividades, setAtividades] = useState([]);
   
-  // Estado para nova obra
+  // Estado para nova obra - COM STATUS EM ANDAMENTO POR PADRÃO
   const [novaObra, setNovaObra] = useState({
     projeto: '',
     encarregado: '',
@@ -23,8 +23,8 @@ function Obras() {
     criterio: '',
     atividadeDia: 'IMPLANTAÇÃO',
     postesPrevistos: 0,
-    dataInicio: '',
-    prazo: ''
+    dataInicio: new Date().toISOString().split('T')[0], // Data de hoje por padrão
+    prazo: '' // Sem prazo = Em Andamento
   });
 
   useEffect(() => {
@@ -109,6 +109,8 @@ function Obras() {
   };
 
   const abrirModalAdicionar = () => {
+    // Resetar formulário com data de hoje por padrão
+    const hoje = new Date().toISOString().split('T')[0];
     setNovaObra({
       projeto: '',
       encarregado: '',
@@ -118,8 +120,8 @@ function Obras() {
       criterio: '',
       atividadeDia: 'IMPLANTAÇÃO',
       postesPrevistos: 0,
-      dataInicio: '',
-      prazo: ''
+      dataInicio: hoje, // Data de hoje = obra em andamento
+      prazo: '' // Sem prazo definido
     });
     setShowAdicionarModal(true);
   };
@@ -158,6 +160,24 @@ function Obras() {
     if (!novaObra.projeto || !novaObra.encarregado) {
       alert('❌ Projeto e Encarregado são obrigatórios!');
       return;
+    }
+
+    // Validar que a data de início é hoje ou antes para ser "Em Andamento"
+    const hoje = new Date();
+    hoje.setHours(0, 0, 0, 0);
+    
+    const dataInicio = new Date(novaObra.dataInicio);
+    dataInicio.setHours(0, 0, 0, 0);
+    
+    if (dataInicio > hoje) {
+      const confirma = window.confirm(
+        '⚠️ ATENÇÃO: A data de início está no futuro, então esta obra será marcada como PROGRAMADA e NÃO aparecerá na programação do dia.\n\n' +
+        'Para adicionar uma obra EM ANDAMENTO, use a data de hoje ou uma data anterior.\n\n' +
+        'Deseja continuar mesmo assim?'
+      );
+      if (!confirma) {
+        return;
+      }
     }
 
     try {
@@ -362,14 +382,14 @@ function Obras() {
       {obrasDoDia.length > 0 && (
         <div className="programacao-dia-container" style={{ marginTop: '40px' }}>
           <div className="programacao-header">
-            <h2>📅 PROGRAMAÇÃO DO DIA</h2>
+            <h2>📅 PROGRAMAÇÃO DO DIA - OBRAS EM ANDAMENTO</h2>
             <div style={{ display: 'flex', gap: '10px' }}>
               <button onClick={abrirModalAdicionar} className="btn-download" style={{ background: '#f59e0b' }}>
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <line x1="12" y1="5" x2="12" y2="19" />
                   <line x1="5" y1="12" x2="19" y2="12" />
                 </svg>
-                Nova Obra
+                Adicionar na Programação
               </button>
               <button onClick={baixarTabelaPNG} className="btn-download">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -462,10 +482,26 @@ function Obras() {
             </button>
 
             <div className="modal-header">
-              <h2>➕ Adicionar Nova Obra</h2>
+              <h2>➕ Adicionar Obra na Programação do Dia</h2>
             </div>
 
             <div className="modal-body">
+              <div style={{ 
+                background: '#e8f4f5', 
+                padding: '15px', 
+                borderRadius: '10px', 
+                marginBottom: '20px',
+                borderLeft: '4px solid #0B9E9F'
+              }}>
+                <p style={{ margin: 0, color: '#333', fontSize: '14px' }}>
+                  ℹ️ <strong>ATENÇÃO:</strong> Esta obra será adicionada na <strong>PROGRAMAÇÃO DO DIA</strong> (obras em andamento).
+                  <br/>
+                  • Data de início: <strong>Hoje ou anterior</strong> = Obra EM ANDAMENTO
+                  <br/>
+                  • Data de início: <strong>Futura</strong> = Obra PROGRAMADA (não aparece na programação)
+                </p>
+              </div>
+
               <div className="detail-section">
                 <h3>📋 Informações Principais</h3>
                 <div className="detail-grid">
@@ -619,7 +655,7 @@ function Obras() {
                   </div>
 
                   <div className="detail-item">
-                    <span className="detail-label">Data Início:</span>
+                    <span className="detail-label">Data Início * (para obra EM ANDAMENTO: hoje ou anterior):</span>
                     <input
                       type="date"
                       value={novaObra.dataInicio}
@@ -628,15 +664,16 @@ function Obras() {
                         width: '100%',
                         padding: '10px',
                         borderRadius: '8px',
-                        border: '2px solid #e0e0e0',
+                        border: '2px solid #0B9E9F',
                         fontSize: '14px',
-                        marginTop: '5px'
+                        marginTop: '5px',
+                        fontWeight: 'bold'
                       }}
                     />
                   </div>
 
                   <div className="detail-item">
-                    <span className="detail-label">Prazo:</span>
+                    <span className="detail-label">Prazo (deixe vazio se não tiver):</span>
                     <input
                       type="date"
                       value={novaObra.prazo}
@@ -669,7 +706,7 @@ function Obras() {
                     cursor: 'pointer'
                   }}
                 >
-                  ✓ Adicionar Obra
+                  ✓ Adicionar na Programação
                 </button>
                 <button 
                   onClick={fecharModalAdicionar}

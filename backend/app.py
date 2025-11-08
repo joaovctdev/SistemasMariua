@@ -188,7 +188,7 @@ def processar_planilha(caminho_arquivo):
                 # Verificar se está energizada
                 is_energizada = 'ENERGIZADA' in anotacoes.upper()
                 
-                # Determinar status baseado nas DATAS
+                # Determinar status baseado nas DATAS (LÓGICA CORRIGIDA)
                 from datetime import datetime
                 hoje = datetime.now().date()
                 
@@ -224,25 +224,32 @@ def processar_planilha(caminho_arquivo):
                     except:
                         dt_termino = None
                 
-                # LÓGICA DE STATUS:
+                # ========== LÓGICA DE STATUS CORRIGIDA ==========
                 # 1. ENERGIZADA: Anotações contém "ENERGIZADA" OU Data de término < hoje
-                # 2. EM ANDAMENTO: Data início <= hoje E (Data término >= hoje OU sem data término)
-                # 3. PROGRAMADA: Data início > hoje
+                # 2. PROGRAMADA: Data início > hoje
+                # 3. EM ANDAMENTO: Data início <= hoje E Data término >= hoje
                 # 4. CONCLUÍDA: Progresso >= 100%
                 
                 if is_energizada or (dt_termino and dt_termino < hoje):
+                    # Obras energizadas: anotações com "ENERGIZADA" ou data término passou
                     status = 'Energizada'
                 elif progresso >= 100:
+                    # Obras concluídas: progresso completo
                     status = 'Concluída'
                 elif dt_inicio and dt_inicio > hoje:
+                    # Obras programadas: data de início no futuro
                     status = 'Programada'
                 elif dt_inicio and dt_inicio <= hoje:
+                    # Obras que já começaram
                     if dt_termino:
                         if dt_termino >= hoje:
+                            # Data início passou e data término não passou = Em Andamento
                             status = 'Em Andamento'
                         else:
+                            # Data início passou e data término passou = Energizada
                             status = 'Energizada'
                     else:
+                        # Sem data término definida, mas já começou = Em Andamento
                         status = 'Em Andamento'
                 else:
                     # Se não tem data de início, usa progresso
@@ -297,7 +304,7 @@ def processar_planilha(caminho_arquivo):
                     obras.append(obra)
                     # Debug: mostrar coordenadas das primeiras 3 obras
                     if len(obras) <= 3:
-                        print(f"Obra {projeto}: Lat={latitude}, Lng={longitude}, Valid={has_valid_coordinates}")
+                        print(f"Obra {projeto}: Status={status}, DataInicio={dt_inicio}, DataTermino={dt_termino}, Hoje={hoje}")
                     
                     
             except Exception as e:
