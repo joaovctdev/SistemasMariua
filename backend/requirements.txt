@@ -1,3 +1,20 @@
+# Backend Requirements - Sistema Mariuá
+
+# Framework Web
 Flask==3.0.0
 Flask-CORS==4.0.0
-y==2.8.0
+
+# Processamento de Planilhas
+pandas==2.1.3
+openpyxl==3.1.2
+numpy==1.26.2
+
+# Segurança e Autenticação
+PyJWT==2.8.0
+
+# Utilitários
+python-dateutil==2.8.2
+pytz==2023.3
+
+# Opcional: Para logs mais robustos
+coloredlogs==15.0.1

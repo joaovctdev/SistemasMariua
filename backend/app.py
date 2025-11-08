@@ -4,8 +4,14 @@ from datetime import datetime, timedelta
 import jwt
 import hashlib
 import pandas as pd
+import numpy as np
 import os
 from werkzeug.utils import secure_filename
+import logging
+
+# Configurar logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 CORS(app)
@@ -27,113 +33,249 @@ users_db = {
     }
 }
 
-# Função auxiliar para processar planilha
-def processar_planilha(caminho_arquivo):
-    """Processa a planilha e retorna lista de obras"""
+# =======================
+# FUNÇÕES AUXILIARES
+# =======================
+
+def validar_coordenadas(lat, lng):
+    """Valida se as coordenadas são válidas"""
     try:
-        # Ler o Excel com pandas
-        df = pd.read_excel(caminho_arquivo, header=0)
+        lat = float(lat)
+        lng = float(lng)
+        return (-90 <= lat <= 90) and (-180 <= lng <= 180)
+    except (ValueError, TypeError):
+        return False
+
+def limpar_valor(valor):
+    """Limpa e normaliza valores da planilha"""
+    if pd.isna(valor):
+        return None
+    
+    valor_str = str(valor).strip()
+    
+    # Valores inválidos
+    if valor_str.lower() in ['nan', 'none', 'nat', '']:
+        return None
+    
+    return valor_str
+
+def converter_numero(valor, padrao=0):
+    """Converte valores para número de forma segura"""
+    try:
+        if pd.isna(valor):
+            return padrao
+        return float(valor)
+    except (ValueError, TypeError):
+        return padrao
+
+def converter_coordenada(valor):
+    """Converte coordenadas de forma robusta"""
+    try:
+        if pd.isna(valor):
+            return None
         
-        # Processar os dados
+        valor_str = str(valor).replace(',', '.').strip()
+        coord = float(valor_str)
+        
+        return coord if -180 <= coord <= 180 else None
+    except (ValueError, TypeError):
+        return None
+
+def converter_data(valor):
+    """
+    Converte diferentes formatos de data para objeto datetime
+    Aceita: dd/mm/yyyy, yyyy-mm-dd, timestamps do Excel
+    """
+    if pd.isna(valor):
+        return None
+    
+    try:
+        # Se já for datetime do pandas
+        if isinstance(valor, pd.Timestamp):
+            return valor.to_pydatetime()
+        
+        # Se for string
+        if isinstance(valor, str):
+            valor = valor.strip()
+            
+            # Formato dd/mm/yyyy
+            if '/' in valor:
+                return datetime.strptime(valor, '%d/%m/%Y')
+            
+            # Formato yyyy-mm-dd
+            if '-' in valor:
+                return datetime.strptime(valor, '%Y-%m-%d')
+        
+        # Se for número (Excel timestamp)
+        if isinstance(valor, (int, float)):
+            return pd.to_datetime(valor, unit='D', origin='1899-12-30')
+        
+        return None
+    except (ValueError, TypeError) as e:
+        logger.warning(f"Erro ao converter data '{valor}': {e}")
+        return None
+
+def formatar_data_br(data):
+    """Formata datetime para dd/mm/yyyy"""
+    if data is None:
+        return None
+    try:
+        if isinstance(data, datetime):
+            return data.strftime('%d/%m/%Y')
+        return str(data)
+    except:
+        return None
+
+def determinar_status(data_inicio, data_termino, progresso, anotacoes):
+    """
+    Determina o status da obra baseado nas datas e progresso
+    
+    Regras:
+    - ENERGIZADA: Se contém "ENERGIZADA" nas anotações
+    - CONCLUÍDA: Se data_termino < hoje
+    - PROGRAMADA: Se data_inicio > hoje
+    - EM ANDAMENTO: Se data_inicio <= hoje <= data_termino
+    """
+    hoje = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+    
+    # Verificar se está energizada
+    is_energizada = False
+    if anotacoes:
+        is_energizada = 'ENERGIZADA' in anotacoes.upper()
+    
+    if is_energizada:
+        return 'Energizada', is_energizada
+    
+    # Se não tem datas, usar apenas progresso
+    if not data_inicio and not data_termino:
+        if progresso >= 100:
+            return 'Concluída', False
+        elif progresso > 0:
+            return 'Em Andamento', False
+        else:
+            return 'Programada', False
+    
+    # Lógica baseada em datas
+    if data_termino:
+        if data_termino < hoje:
+            return 'Concluída', False
+    
+    if data_inicio:
+        if data_inicio > hoje:
+            return 'Programada', False
+    
+    # Se data_inicio <= hoje e (não tem data_termino OU data_termino >= hoje)
+    if data_inicio and data_inicio <= hoje:
+        if not data_termino or data_termino >= hoje:
+            return 'Em Andamento', False
+    
+    # Fallback: usar progresso
+    if progresso >= 100:
+        return 'Concluída', False
+    elif progresso > 0:
+        return 'Em Andamento', False
+    else:
+        return 'Programada', False
+
+# =======================
+# PROCESSAMENTO DE PLANILHA
+# =======================
+
+def processar_planilha(caminho_arquivo):
+    """
+    Processa a planilha Excel de forma robusta e eficiente
+    Retorna lista de obras processadas
+    """
+    try:
+        logger.info(f"Iniciando processamento: {caminho_arquivo}")
+        
+        df = pd.read_excel(caminho_arquivo, header=0, engine='openpyxl')
+        df = df.replace({np.nan: None})
+        
+        logger.info(f"Planilha carregada: {len(df)} linhas")
+        
         obras = []
+        hoje = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
         
         for index, row in df.iterrows():
             try:
-                # Extrair TODAS as colunas (baseado na ordem correta do Excel)
-                # A - ENCARREGADO
-                encarregado = str(row.iloc[0]) if pd.notna(row.iloc[0]) else 'N/A'
-                # B - SUPERVISOR
-                supervisor = str(row.iloc[1]) if pd.notna(row.iloc[1]) else 'N/A'
-                # C - PROJETO
-                projeto = str(row.iloc[2]) if pd.notna(row.iloc[2]) else f"B-{str(index+1).zfill(4)}"
-                # D - TÍTULO (cliente)
-                cliente = str(row.iloc[3]) if pd.notna(row.iloc[3]) else 'N/A'
-                # E - MUNICIPIO (localidade)
-                localidade = str(row.iloc[4]) if pd.notna(row.iloc[4]) else 'N/A'
-                # F - CRITÉRIO
-                criterio = str(row.iloc[5]) if pd.notna(row.iloc[5]) else ''
-                # G - ANOTAÇÕES
-                anotacoes = str(row.iloc[6]) if pd.notna(row.iloc[6]) else ''
-                # H - POSTES PREVISTOS
-                postes_previstos = float(row.iloc[7]) if pd.notna(row.iloc[7]) else 0
-                # I - DATA DE INÍCIO
-                data_inicio = str(row.iloc[8]) if pd.notna(row.iloc[8]) else ''
-                # J - DATA CONCLUSÃO (prazo)
-                prazo = str(row.iloc[9]) if pd.notna(row.iloc[9]) else ''
-                # K - OBRA DA SEMANA
-                obra_semana = str(row.iloc[10]) if pd.notna(row.iloc[10]) else ''
-                # L - NECESSIDADE
-                necessidade = str(row.iloc[11]) if pd.notna(row.iloc[11]) else ''
-                # M - PROGRAMAÇÃO LV
-                programacao_lv = str(row.iloc[12]) if pd.notna(row.iloc[12]) else ''
-                # N - CAVAS REALIZADAS
-                cavas_realizadas = float(row.iloc[13]) if pd.notna(row.iloc[13]) else 0
-                # O - POSTES REALIZADOS
-                postes_implantados = float(row.iloc[14]) if pd.notna(row.iloc[14]) else 0
-                # P - LATITUDE
-                latitude_raw = row.iloc[15] if pd.notna(row.iloc[15]) else None
-                latitude = None
-                if latitude_raw is not None:
-                    try:
-                        # Tentar converter para float
-                        lat_str = str(latitude_raw).replace(',', '.').strip()
-                        latitude = float(lat_str)
-                    except:
-                        latitude = None
+                # DADOS BÁSICOS
+                projeto = limpar_valor(row.iloc[2])
+                if not projeto:
+                    continue
                 
-                # Q - LONGITUDE
-                longitude_raw = row.iloc[16] if pd.notna(row.iloc[16]) else None
-                longitude = None
-                if longitude_raw is not None:
-                    try:
-                        # Tentar converter para float
-                        lng_str = str(longitude_raw).replace(',', '.').strip()
-                        longitude = float(lng_str)
-                    except:
-                        longitude = None
-                # R - CLIENTES PREVISTOS
-                clientes_previstos = float(row.iloc[17]) if pd.notna(row.iloc[17]) else 0
-                # S - PROJETO KIT
-                projeto_kit = str(row.iloc[18]) if pd.notna(row.iloc[18]) else ''
-                # T - PROJETO MEDIDOR
-                projeto_medidor = str(row.iloc[19]) if pd.notna(row.iloc[19]) else ''
-                # U - AR COELBA
-                ar_coelba = str(row.iloc[20]) if pd.notna(row.iloc[20]) else 'N/A'
-                # V - VISITA PRÉVIA
-                data_visita_previa = str(row.iloc[21]) if pd.notna(row.iloc[21]) else ''
-                # W - OBSERVAÇÃO DA VISITA
-                observacao_visita = str(row.iloc[22]) if pd.notna(row.iloc[22]) else ''
-                # X - ANÁLISE PRÉ FECH
-                analise_pre_fechamento = str(row.iloc[23]) if pd.notna(row.iloc[23]) else ''
-                # Y - SOLICITAÇÃO DE RESERVA
-                data_solicitacao_reserva = str(row.iloc[24]) if pd.notna(row.iloc[24]) else ''
+                # EQUIPE
+                encarregado = limpar_valor(row.iloc[0]) or 'N/A'
+                supervisor = limpar_valor(row.iloc[1]) or 'N/A'
                 
-                # Calcular progresso
-                progresso = 0
-                if postes_previstos > 0:
-                    progresso = min(round((postes_implantados / postes_previstos) * 100), 100)
+                # LOCALIZAÇÃO
+                cliente = limpar_valor(row.iloc[3]) or 'N/A'
+                localidade = limpar_valor(row.iloc[4]) or 'N/A'
                 
-                # Verificar se está energizada
-                is_energizada = 'ENERGIZADA' in anotacoes.upper()
+                # INFORMAÇÕES ADICIONAIS
+                criterio = limpar_valor(row.iloc[5]) or ''
+                anotacoes = limpar_valor(row.iloc[6]) or ''
                 
-                # Determinar status
-                if is_energizada:
-                    status = 'Energizada'
-                elif progresso >= 100:
-                    status = 'Concluída'
-                elif progresso > 0:
-                    status = 'Em Andamento'
-                else:
-                    status = 'Programada'
+                # NÚMEROS - POSTES
+                postes_previstos = int(converter_numero(row.iloc[7]))
+                postes_implantados = int(converter_numero(row.iloc[14]))
+                cavas_realizadas = int(converter_numero(row.iloc[13]))
                 
-                # Verificar se tem coordenadas válidas
+                # DATAS - CONVERTIDAS PARA DATETIME
+                data_inicio_raw = row.iloc[8]
+                data_termino_raw = row.iloc[9]
+                
+                data_inicio = converter_data(data_inicio_raw)
+                data_termino = converter_data(data_termino_raw)
+                
+                # Formatar para exibição
+                data_inicio_str = formatar_data_br(data_inicio) or ''
+                data_termino_str = formatar_data_br(data_termino) or ''
+                
+                # PROGRAMAÇÃO
+                obra_semana = limpar_valor(row.iloc[10]) or ''
+                necessidade = limpar_valor(row.iloc[11]) or ''
+                programacao_lv = limpar_valor(row.iloc[12]) or ''
+                
+                # COORDENADAS
+                latitude = converter_coordenada(row.iloc[15])
+                longitude = converter_coordenada(row.iloc[16])
+                
                 has_valid_coordinates = (
                     latitude is not None and 
                     longitude is not None and
-                    -90 <= latitude <= 90 and
-                    -180 <= longitude <= 180
+                    validar_coordenadas(latitude, longitude)
                 )
                 
+                # CLIENTES E PROJETOS
+                clientes_previstos = int(converter_numero(row.iloc[17]))
+                projeto_kit = limpar_valor(row.iloc[18]) or ''
+                projeto_medidor = limpar_valor(row.iloc[19]) or ''
+                
+                # DOCUMENTAÇÃO
+                ar_coelba = limpar_valor(row.iloc[20]) or 'N/A'
+                data_visita_previa = limpar_valor(row.iloc[21]) or ''
+                observacao_visita = limpar_valor(row.iloc[22]) or ''
+                analise_pre_fechamento = limpar_valor(row.iloc[23]) or ''
+                data_solicitacao_reserva = limpar_valor(row.iloc[24]) or ''
+                
+                # CÁLCULOS
+                progresso = 0
+                if postes_previstos > 0:
+                    progresso = min(
+                        round((postes_implantados / postes_previstos) * 100),
+                        100
+                    )
+                
+                # DETERMINAR STATUS BASEADO EM DATAS
+                status, is_energizada = determinar_status(
+                    data_inicio, 
+                    data_termino, 
+                    progresso, 
+                    anotacoes
+                )
+                
+                # MONTAR OBJETO
                 obra = {
                     'id': index + 1,
                     'encarregado': encarregado,
@@ -143,18 +285,19 @@ def processar_planilha(caminho_arquivo):
                     'localidade': localidade,
                     'criterio': criterio,
                     'anotacoes': anotacoes,
-                    'postesPrevistos': int(postes_previstos),
-                    'dataInicio': data_inicio,
-                    'prazo': prazo,
+                    'postesPrevistos': postes_previstos,
+                    'dataInicio': data_inicio_str,
+                    'dataTermino': data_termino_str,
+                    'prazo': data_termino_str,  # Alias para compatibilidade
                     'obraSemana': obra_semana,
                     'necessidade': necessidade,
                     'programacaoLv': programacao_lv,
-                    'cavasRealizadas': int(cavas_realizadas),
-                    'postesImplantados': int(postes_implantados),
+                    'cavasRealizadas': cavas_realizadas,
+                    'postesImplantados': postes_implantados,
                     'latitude': latitude,
                     'longitude': longitude,
                     'hasCoordinates': has_valid_coordinates,
-                    'clientesPrevistos': int(clientes_previstos),
+                    'clientesPrevistos': clientes_previstos,
                     'projetoKit': projeto_kit,
                     'projetoMedidor': projeto_medidor,
                     'arCoelba': ar_coelba,
@@ -167,25 +310,44 @@ def processar_planilha(caminho_arquivo):
                     'status': status
                 }
                 
-                # Só adicionar se tiver projeto válido
-                if projeto and projeto != 'nan':
-                    obras.append(obra)
-                    # Debug: mostrar coordenadas das primeiras 3 obras
-                    if len(obras) <= 3:
-                        print(f"Obra {projeto}: Lat={latitude}, Lng={longitude}, Valid={has_valid_coordinates}")
-                    
+                obras.append(obra)
+                
+                # Log das primeiras 5 obras
+                if len(obras) <= 5:
+                    logger.info(
+                        f"Obra {projeto}: Status={status}, "
+                        f"Início={data_inicio_str}, Término={data_termino_str}, "
+                        f"Progresso={progresso}%"
+                    )
                     
             except Exception as e:
-                print(f"Erro ao processar linha {index}: {e}")
+                logger.error(f"Erro na linha {index + 2}: {str(e)}")
                 continue
         
+        # Estatísticas
+        stats = {
+            'total': len(obras),
+            'em_andamento': len([o for o in obras if o['status'] == 'Em Andamento']),
+            'concluidas': len([o for o in obras if o['status'] == 'Concluída']),
+            'programadas': len([o for o in obras if o['status'] == 'Programada']),
+            'energizadas': len([o for o in obras if o['isEnergizada']])
+        }
+        
+        logger.info(f"✅ Processamento concluído: {stats}")
+        
         return obras
+        
     except Exception as e:
+        logger.error(f"❌ Erro ao processar planilha: {str(e)}")
         raise Exception(f"Erro ao processar planilha: {str(e)}")
 
-# Endpoint de login
+# =======================
+# ENDPOINTS
+# =======================
+
 @app.route('/api/login', methods=['POST'])
 def login():
+    """Endpoint de autenticação"""
     data = request.get_json()
     username = data.get('username')
     password = data.get('password')
@@ -210,75 +372,91 @@ def login():
     
     return jsonify({'error': 'Credenciais inválidas'}), 401
 
-# Endpoint para buscar obras - CORRIGIDO
 @app.route('/api/obras', methods=['GET'])
 @app.route('/api/obras/', methods=['GET'])
 def get_obras():
+    """Retorna todas as obras processadas"""
     try:
-        # Caminho da planilha no backend
         planilha_path = os.path.join('uploads', 'PROGRAMACAO - NOVEMBRO.xlsx')
         
-        print(f"Procurando planilha em: {planilha_path}")
-        print(f"Arquivo existe? {os.path.exists(planilha_path)}")
-        
         if not os.path.exists(planilha_path):
-            return jsonify({'error': 'Planilha não encontrada no servidor'}), 404
+            logger.error(f"Planilha não encontrada: {planilha_path}")
+            return jsonify({
+                'error': 'Planilha não encontrada no servidor',
+                'path': planilha_path
+            }), 404
         
         obras = processar_planilha(planilha_path)
-        
-        print(f"Total de obras processadas: {len(obras)}")
         
         return jsonify({
             'success': True,
             'total': len(obras),
-            'obras': obras
+            'obras': obras,
+            'timestamp': datetime.now().isoformat()
         }), 200
         
     except Exception as e:
-        print(f"Erro ao buscar obras: {e}")
-        return jsonify({'error': str(e)}), 500
+        logger.error(f"Erro ao buscar obras: {str(e)}")
+        return jsonify({
+            'error': str(e),
+            'timestamp': datetime.now().isoformat()
+        }), 500
 
-# Rota de teste
 @app.route('/api/health', methods=['GET'])
 def health():
-    return jsonify({'status': 'ok'}), 200
+    """Health check"""
+    return jsonify({
+        'status': 'ok',
+        'timestamp': datetime.now().isoformat(),
+        'version': '2.1'
+    }), 200
 
-# Endpoint de debug para coordenadas
-@app.route('/api/debug/coordenadas', methods=['GET'])
-def debug_coordenadas():
+@app.route('/api/debug/planilha', methods=['GET'])
+def debug_planilha():
+    """Endpoint de debug para análise da planilha"""
     try:
         planilha_path = os.path.join('uploads', 'PROGRAMACAO - NOVEMBRO.xlsx')
         
         if not os.path.exists(planilha_path):
             return jsonify({'error': 'Planilha não encontrada'}), 404
         
-        df = pd.read_excel(planilha_path, header=0)
+        df = pd.read_excel(planilha_path, header=0, engine='openpyxl')
         
-        coordenadas_info = []
-        for index, row in df.iterrows():
-            if index < 5:  # Apenas as 5 primeiras linhas
-                projeto = str(row.iloc[2]) if pd.notna(row.iloc[2]) else 'N/A'
-                lat_raw = row.iloc[15]
-                lng_raw = row.iloc[16]
-                
-                coordenadas_info.append({
-                    'linha': index + 1,
-                    'projeto': projeto,
-                    'latitude_raw': str(lat_raw),
-                    'longitude_raw': str(lng_raw),
-                    'lat_type': str(type(lat_raw)),
-                    'lng_type': str(type(lng_raw))
-                })
-        
-        return jsonify({
+        info = {
             'total_linhas': len(df),
-            'primeiras_5_linhas': coordenadas_info
-        }), 200
+            'total_colunas': len(df.columns),
+            'colunas': df.columns.tolist(),
+            'primeiras_5_linhas': []
+        }
+        
+        for index, row in df.head(5).iterrows():
+            data_inicio = converter_data(row.iloc[8])
+            data_termino = converter_data(row.iloc[9])
+            
+            info['primeiras_5_linhas'].append({
+                'linha': index + 1,
+                'projeto': limpar_valor(row.iloc[2]),
+                'encarregado': limpar_valor(row.iloc[0]),
+                'data_inicio_raw': str(row.iloc[8]),
+                'data_inicio_convertida': formatar_data_br(data_inicio),
+                'data_termino_raw': str(row.iloc[9]),
+                'data_termino_convertida': formatar_data_br(data_termino),
+                'postes_previstos': converter_numero(row.iloc[7]),
+                'postes_implantados': converter_numero(row.iloc[14]),
+            })
+        
+        return jsonify(info), 200
         
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':
-    print("Iniciando servidor Flask...")
-    print("Verifique se a planilha está em: backend/uploads/PROGRAMACAO - NOVEMBRO.xlsx")
-    app.run(debug=True, port=5000)
+    logger.info("="*60)
+    logger.info("🚀 Iniciando Servidor Flask - Sistema Mariuá v2.1")
+    logger.info("="*60)
+    logger.info(f"📁 Pasta de uploads: {app.config['UPLOAD_FOLDER']}")
+    logger.info(f"📊 Planilha esperada: uploads/PROGRAMACAO - NOVEMBRO.xlsx")
+    logger.info("📅 Lógica de status baseada em datas implementada")
+    logger.info("="*60)
+    
+    app.run(debug=True, port=5000, host='0.0.0.0')
