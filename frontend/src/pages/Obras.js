@@ -1,24 +1,49 @@
-// src/pages/Obras.js - MODAL COMPLETO COM TODOS OS CAMPOS
 import React, { useState, useEffect } from 'react';
 import html2canvas from 'html2canvas';
 
 const API_URL = 'http://localhost:5000/api';
 
 function Obras() {
-  // ===== ESTADOS =====
   const [obras, setObras] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [selectedObra, setSelectedObra] = useState(null);
   const [showModal, setShowModal] = useState(false);
   const [obrasDoDia, setObrasDoDia] = useState([]);
+  const [showAdicionarModal, setShowAdicionarModal] = useState(false);
+  const [atividades, setAtividades] = useState([]);
+  
+  // Estado para nova obra
+  const [novaObra, setNovaObra] = useState({
+    projeto: '',
+    encarregado: '',
+    supervisor: '',
+    cliente: '',
+    localidade: '',
+    criterio: '',
+    atividadeDia: 'IMPLANTAÇÃO',
+    postesPrevistos: 0,
+    dataInicio: '',
+    prazo: ''
+  });
 
-  // ===== CARREGAR OBRAS AO MONTAR =====
   useEffect(() => {
     carregarObras();
+    carregarAtividades();
   }, []);
 
-  // ===== FUNÇÃO: CARREGAR OBRAS =====
+  const carregarAtividades = async () => {
+    try {
+      const response = await fetch(`${API_URL}/atividades`);
+      const data = await response.json();
+      if (response.ok) {
+        setAtividades(data.atividades);
+      }
+    } catch (err) {
+      console.error('Erro ao carregar atividades:', err);
+    }
+  };
+
   const carregarObras = async () => {
     setLoading(true);
     setError('');
@@ -28,37 +53,26 @@ function Obras() {
       const data = await response.json();
 
       if (response.ok) {
-        console.log('✅ Obras carregadas:', data.total);
-        console.log('📊 Estatísticas:', {
-          total: data.obras.length,
-          emAndamento: data.obras.filter(o => o.status === 'Em Andamento').length,
-          concluidas: data.obras.filter(o => o.status === 'Concluída').length,
-          programadas: data.obras.filter(o => o.status === 'Programada').length,
-        });
         setObras(data.obras);
         filtrarObrasDoDia(data.obras);
       } else {
         setError(data.error || 'Erro ao carregar obras');
       }
     } catch (err) {
-      console.error('❌ Erro:', err);
+      console.error('Erro:', err);
       setError('Erro ao conectar com o servidor. Certifique-se que o backend está rodando na porta 5000.');
     } finally {
       setLoading(false);
     }
   };
 
-  // ===== FUNÇÃO: FILTRAR OBRAS DO DIA =====
   const filtrarObrasDoDia = (todasObras) => {
-    const obrasFiltradas = todasObras.filter(obra => 
-      obra.status === 'Em Andamento'
-    );
-
-    console.log('📅 Obras do dia (Em Andamento):', obrasFiltradas.length);
+    const obrasFiltradas = todasObras.filter(obra => {
+      return obra.status === 'Em Andamento';
+    });
     setObrasDoDia(obrasFiltradas);
   };
 
-  // ===== FUNÇÃO: BAIXAR TABELA PNG =====
   const baixarTabelaPNG = async () => {
     const tabela = document.getElementById('tabela-programacao-dia');
     if (!tabela) {
@@ -78,28 +92,127 @@ function Obras() {
       link.download = `programacao-obras-${dataHoje}.png`;
       link.href = canvas.toDataURL('image/png');
       link.click();
-      
-      console.log('✅ PNG baixado com sucesso');
     } catch (error) {
-      console.error('❌ Erro ao gerar PNG:', error);
+      console.error('Erro ao gerar PNG:', error);
       alert('Erro ao gerar imagem da tabela');
     }
   };
 
-  // ===== FUNÇÃO: ABRIR DETALHES =====
   const abrirDetalhes = (obra) => {
-    console.log('📋 Abrindo detalhes da obra:', obra.projeto);
     setSelectedObra(obra);
     setShowModal(true);
   };
 
-  // ===== FUNÇÃO: FECHAR MODAL =====
   const fecharModal = () => {
     setShowModal(false);
     setTimeout(() => setSelectedObra(null), 300);
   };
 
-  // ===== FUNÇÃO: COR DO STATUS =====
+  const abrirModalAdicionar = () => {
+    setNovaObra({
+      projeto: '',
+      encarregado: '',
+      supervisor: '',
+      cliente: '',
+      localidade: '',
+      criterio: '',
+      atividadeDia: 'IMPLANTAÇÃO',
+      postesPrevistos: 0,
+      dataInicio: '',
+      prazo: ''
+    });
+    setShowAdicionarModal(true);
+  };
+
+  const fecharModalAdicionar = () => {
+    setShowAdicionarModal(false);
+  };
+
+  const handleProjetoChange = async (e) => {
+    const projetoId = e.target.value.toUpperCase();
+    setNovaObra({ ...novaObra, projeto: projetoId });
+
+    // Se o projeto começa com B-, buscar configurações
+    if (projetoId.startsWith('B-')) {
+      try {
+        const response = await fetch(`${API_URL}/projeto-config/${projetoId}`);
+        const data = await response.json();
+        
+        if (response.ok && data.config && Object.keys(data.config).length > 0) {
+          setNovaObra(prev => ({
+            ...prev,
+            projeto: projetoId,
+            supervisor: data.config.supervisor || prev.supervisor,
+            cliente: data.config.cliente || prev.cliente,
+            localidade: data.config.localidade || prev.localidade,
+            criterio: data.config.criterio || prev.criterio
+          }));
+        }
+      } catch (err) {
+        console.error('Erro ao buscar config do projeto:', err);
+      }
+    }
+  };
+
+  const adicionarObra = async () => {
+    if (!novaObra.projeto || !novaObra.encarregado) {
+      alert('❌ Projeto e Encarregado são obrigatórios!');
+      return;
+    }
+
+    try {
+      console.log('Enviando nova obra:', novaObra);
+      
+      const response = await fetch(`${API_URL}/obras/adicionar`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(novaObra)
+      });
+
+      const data = await response.json();
+      console.log('Resposta do servidor:', data);
+
+      if (response.ok) {
+        alert('✅ Obra adicionada com sucesso!');
+        fecharModalAdicionar();
+        await carregarObras();
+      } else {
+        console.error('Erro na resposta:', data);
+        alert('❌ Erro ao adicionar obra: ' + (data.error || 'Erro desconhecido'));
+      }
+    } catch (err) {
+      console.error('Erro ao conectar:', err);
+      alert('❌ Erro ao conectar com o servidor. Verifique se o backend está rodando.');
+    }
+  };
+
+  const atualizarAtividadeDia = async (obraId, novaAtividade) => {
+    try {
+      console.log(`Atualizando obra ID ${obraId} com atividade: ${novaAtividade}`);
+      
+      const response = await fetch(`${API_URL}/obras/atualizar/${obraId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ atividadeDia: novaAtividade })
+      });
+
+      const data = await response.json();
+      console.log('Resposta do servidor:', data);
+
+      if (response.ok) {
+        console.log('Atividade atualizada com sucesso!');
+        // Recarregar obras após sucesso
+        await carregarObras();
+      } else {
+        console.error('Erro na resposta:', data);
+        alert('Erro ao atualizar atividade: ' + (data.error || 'Erro desconhecido'));
+      }
+    } catch (err) {
+      console.error('Erro ao conectar:', err);
+      alert('Erro ao conectar com o servidor. Verifique se o backend está rodando.');
+    }
+  };
+
   const getStatusColor = (status, isEnergizada) => {
     if (isEnergizada) return '#10b981';
     switch (status) {
@@ -110,7 +223,6 @@ function Obras() {
     }
   };
 
-  // ===== DATA DE HOJE =====
   const dataHoje = new Date().toLocaleDateString('pt-BR', {
     day: '2-digit',
     month: '2-digit',
@@ -119,7 +231,6 @@ function Obras() {
 
   return (
     <div>
-      {/* ===== CABEÇALHO ===== */}
       <div className="page-header">
         <div className="header-content">
           <div>
@@ -137,71 +248,6 @@ function Obras() {
         </div>
       </div>
 
-      {/* ===== PROGRAMAÇÃO DO DIA ===== */}
-      {obrasDoDia.length > 0 && (
-        <div className="programacao-dia-container">
-          <div className="programacao-header">
-            <h2>📅 PROGRAMAÇÃO DO DIA</h2>
-            <button onClick={baixarTabelaPNG} className="btn-download">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                <polyline points="7 10 12 15 17 10" />
-                <line x1="12" y1="15" x2="12" y2="3" />
-              </svg>
-              Baixar PNG
-            </button>
-          </div>
-
-          <div id="tabela-programacao-dia" className="tabela-programacao">
-            <div className="tabela-header-prog">
-              <img src="/Logos/Mariua26Cor.png" alt="Logo Mariua" className="logo-tabela" />
-              <div className="tabela-title">
-                <h3>🏗️ PROGRAMAÇÃO DE OBRAS</h3>
-                <p>Controle e acompanhamento de Obras - Novembro</p>
-                <p className="data-hoje">Data de hoje: {dataHoje}</p>
-              </div>
-            </div>
-
-            <table className="table-prog-dia">
-              <thead>
-                <tr>
-                  <th>OBRA</th>
-                  <th>ENCARREGADO</th>
-                  <th>SUPERVISOR</th>
-                  <th>TÍTULO</th>
-                  <th>MUNICÍPIO</th>
-                  <th>ATIVIDADE DO DIA</th>
-                  <th>CRITÉRIO</th>
-                  <th>STATUS</th>
-                </tr>
-              </thead>
-              <tbody>
-                {obrasDoDia.map(obra => (
-                  <tr key={obra.id}>
-                    <td><strong>{obra.projeto}</strong></td>
-                    <td>{obra.encarregado}</td>
-                    <td>{obra.supervisor}</td>
-                    <td>{obra.cliente}</td>
-                    <td>{obra.localidade}</td>
-                    <td>{obra.necessidade || 'IMPLANTAÇÃO'}</td>
-                    <td>{obra.criterio || 'QLP'}</td>
-                    <td>
-                      <span 
-                        className="status-pill-prog" 
-                        style={{ backgroundColor: getStatusColor(obra.status, obra.isEnergizada) }}
-                      >
-                        {obra.status}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {/* ===== RESUMO ===== */}
       {obras.length > 0 && (
         <div className="obras-summary">
           <div className="summary-card">
@@ -209,8 +255,8 @@ function Obras() {
             <div className="summary-label">Total de Obras</div>
           </div>
           <div className="summary-card">
-            <div className="summary-number">{obras.filter(o => o.status === 'Em Andamento').length}</div>
-            <div className="summary-label">Em Andamento</div>
+            <div className="summary-number">{obrasDoDia.length}</div>
+            <div className="summary-label">Obras do Dia</div>
           </div>
           <div className="summary-card">
             <div className="summary-number">{obras.filter(o => o.isEnergizada).length}</div>
@@ -223,7 +269,6 @@ function Obras() {
         </div>
       )}
 
-      {/* ===== ERRO ===== */}
       {error && (
         <div className="error-banner">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -235,7 +280,6 @@ function Obras() {
         </div>
       )}
 
-      {/* ===== LOADING ===== */}
       {loading && (
         <div className="loading-message">
           <div className="spinner"></div>
@@ -243,7 +287,6 @@ function Obras() {
         </div>
       )}
 
-      {/* ===== VAZIO ===== */}
       {obras.length === 0 && !loading && !error && (
         <div className="empty-state">
           <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="#999" strokeWidth="2">
@@ -257,7 +300,6 @@ function Obras() {
         </div>
       )}
 
-      {/* ===== GRID DE OBRAS ===== */}
       <div className="obras-grid">
         {obras.map(obra => (
           <div 
@@ -300,7 +342,10 @@ function Obras() {
                 <div className="progress-bar">
                   <div 
                     className="progress-fill" 
-                    style={{ width: `${obra.progresso}%` }} 
+                    style={{ 
+                      width: `${obra.progresso}%`,
+                      backgroundColor: getStatusColor(obra.status, obra.isEnergizada)
+                    }} 
                   />
                 </div>
               </div>
@@ -313,7 +358,342 @@ function Obras() {
         ))}
       </div>
 
-      {/* ===== MODAL DE DETALHES COMPLETO ===== */}
+      {/* PROGRAMAÇÃO DO DIA - MOVIDA PARA BAIXO */}
+      {obrasDoDia.length > 0 && (
+        <div className="programacao-dia-container" style={{ marginTop: '40px' }}>
+          <div className="programacao-header">
+            <h2>📅 PROGRAMAÇÃO DO DIA</h2>
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <button onClick={abrirModalAdicionar} className="btn-download" style={{ background: '#f59e0b' }}>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <line x1="12" y1="5" x2="12" y2="19" />
+                  <line x1="5" y1="12" x2="19" y2="12" />
+                </svg>
+                Nova Obra
+              </button>
+              <button onClick={baixarTabelaPNG} className="btn-download">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                  <polyline points="7 10 12 15 17 10" />
+                  <line x1="12" y1="15" x2="12" y2="3" />
+                </svg>
+                Baixar PNG
+              </button>
+            </div>
+          </div>
+
+          <div id="tabela-programacao-dia" className="tabela-programacao">
+            <div className="tabela-header-prog">
+              <img src="/Logos/Mariua26Cor.png" alt="Logo Mariua" className="logo-tabela" />
+              <div className="tabela-title">
+                <h3>🏗️ PROGRAMAÇÃO DE OBRAS</h3>
+                <p>Controle e acompanhamento de Obras - Novembro</p>
+                <p className="data-hoje">Data de hoje: {dataHoje}</p>
+              </div>
+            </div>
+
+            <table className="table-prog-dia">
+              <thead>
+                <tr>
+                  <th>OBRA</th>
+                  <th>ENCARREGADO</th>
+                  <th>SUPERVISOR</th>
+                  <th>TÍTULO</th>
+                  <th>MUNICÍPIO</th>
+                  <th>ATIVIDADE DO DIA</th>
+                  <th>CRITÉRIO</th>
+                  <th>STATUS</th>
+                </tr>
+              </thead>
+              <tbody>
+                {obrasDoDia.map(obra => (
+                  <tr key={obra.id}>
+                    <td><strong>{obra.projeto}</strong></td>
+                    <td>{obra.encarregado}</td>
+                    <td>{obra.supervisor}</td>
+                    <td>{obra.cliente}</td>
+                    <td>{obra.localidade}</td>
+                    <td>
+                      <select 
+                        value={obra.atividadeDia || 'IMPLANTAÇÃO'}
+                        onChange={(e) => atualizarAtividadeDia(obra.id, e.target.value)}
+                        style={{
+                          padding: '5px 10px',
+                          borderRadius: '5px',
+                          border: '1px solid #ddd',
+                          background: 'white',
+                          fontSize: '13px',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        {atividades.map(atividade => (
+                          <option key={atividade} value={atividade}>
+                            {atividade}
+                          </option>
+                        ))}
+                      </select>
+                    </td>
+                    <td>{obra.criterio || 'QLP'}</td>
+                    <td>
+                      <span 
+                        className="status-pill-prog" 
+                        style={{ backgroundColor: getStatusColor(obra.status, obra.isEnergizada) }}
+                      >
+                        {obra.status}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL DE ADICIONAR OBRA */}
+      {showAdicionarModal && (
+        <div className="modal-overlay" onClick={fecharModalAdicionar}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '700px' }}>
+            <button className="modal-close" onClick={fecharModalAdicionar}>
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <line x1="18" y1="6" x2="6" y2="18" />
+                <line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
+            </button>
+
+            <div className="modal-header">
+              <h2>➕ Adicionar Nova Obra</h2>
+            </div>
+
+            <div className="modal-body">
+              <div className="detail-section">
+                <h3>📋 Informações Principais</h3>
+                <div className="detail-grid">
+                  <div className="detail-item">
+                    <span className="detail-label">Projeto *:</span>
+                    <input
+                      type="text"
+                      value={novaObra.projeto}
+                      onChange={handleProjetoChange}
+                      placeholder="Ex: B-0001"
+                      style={{
+                        width: '100%',
+                        padding: '10px',
+                        borderRadius: '8px',
+                        border: '2px solid #e0e0e0',
+                        fontSize: '14px',
+                        marginTop: '5px'
+                      }}
+                    />
+                  </div>
+
+                  <div className="detail-item">
+                    <span className="detail-label">Encarregado *:</span>
+                    <input
+                      type="text"
+                      value={novaObra.encarregado}
+                      onChange={(e) => setNovaObra({ ...novaObra, encarregado: e.target.value })}
+                      placeholder="Nome do encarregado"
+                      style={{
+                        width: '100%',
+                        padding: '10px',
+                        borderRadius: '8px',
+                        border: '2px solid #e0e0e0',
+                        fontSize: '14px',
+                        marginTop: '5px'
+                      }}
+                    />
+                  </div>
+
+                  <div className="detail-item">
+                    <span className="detail-label">Supervisor:</span>
+                    <input
+                      type="text"
+                      value={novaObra.supervisor}
+                      onChange={(e) => setNovaObra({ ...novaObra, supervisor: e.target.value })}
+                      placeholder="Nome do supervisor"
+                      style={{
+                        width: '100%',
+                        padding: '10px',
+                        borderRadius: '8px',
+                        border: '2px solid #e0e0e0',
+                        fontSize: '14px',
+                        marginTop: '5px'
+                      }}
+                    />
+                  </div>
+
+                  <div className="detail-item">
+                    <span className="detail-label">Título/Cliente:</span>
+                    <input
+                      type="text"
+                      value={novaObra.cliente}
+                      onChange={(e) => setNovaObra({ ...novaObra, cliente: e.target.value })}
+                      placeholder="Título da obra"
+                      style={{
+                        width: '100%',
+                        padding: '10px',
+                        borderRadius: '8px',
+                        border: '2px solid #e0e0e0',
+                        fontSize: '14px',
+                        marginTop: '5px'
+                      }}
+                    />
+                  </div>
+
+                  <div className="detail-item">
+                    <span className="detail-label">Município:</span>
+                    <input
+                      type="text"
+                      value={novaObra.localidade}
+                      onChange={(e) => setNovaObra({ ...novaObra, localidade: e.target.value })}
+                      placeholder="Localidade"
+                      style={{
+                        width: '100%',
+                        padding: '10px',
+                        borderRadius: '8px',
+                        border: '2px solid #e0e0e0',
+                        fontSize: '14px',
+                        marginTop: '5px'
+                      }}
+                    />
+                  </div>
+
+                  <div className="detail-item">
+                    <span className="detail-label">Critério:</span>
+                    <input
+                      type="text"
+                      value={novaObra.criterio}
+                      onChange={(e) => setNovaObra({ ...novaObra, criterio: e.target.value })}
+                      placeholder="Ex: QLP, QLU"
+                      style={{
+                        width: '100%',
+                        padding: '10px',
+                        borderRadius: '8px',
+                        border: '2px solid #e0e0e0',
+                        fontSize: '14px',
+                        marginTop: '5px'
+                      }}
+                    />
+                  </div>
+
+                  <div className="detail-item">
+                    <span className="detail-label">Atividade do Dia:</span>
+                    <select
+                      value={novaObra.atividadeDia}
+                      onChange={(e) => setNovaObra({ ...novaObra, atividadeDia: e.target.value })}
+                      style={{
+                        width: '100%',
+                        padding: '10px',
+                        borderRadius: '8px',
+                        border: '2px solid #e0e0e0',
+                        fontSize: '14px',
+                        marginTop: '5px',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      {atividades.map(atividade => (
+                        <option key={atividade} value={atividade}>
+                          {atividade}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="detail-item">
+                    <span className="detail-label">Postes Previstos:</span>
+                    <input
+                      type="number"
+                      value={novaObra.postesPrevistos}
+                      onChange={(e) => setNovaObra({ ...novaObra, postesPrevistos: parseInt(e.target.value) || 0 })}
+                      placeholder="0"
+                      style={{
+                        width: '100%',
+                        padding: '10px',
+                        borderRadius: '8px',
+                        border: '2px solid #e0e0e0',
+                        fontSize: '14px',
+                        marginTop: '5px'
+                      }}
+                    />
+                  </div>
+
+                  <div className="detail-item">
+                    <span className="detail-label">Data Início:</span>
+                    <input
+                      type="date"
+                      value={novaObra.dataInicio}
+                      onChange={(e) => setNovaObra({ ...novaObra, dataInicio: e.target.value })}
+                      style={{
+                        width: '100%',
+                        padding: '10px',
+                        borderRadius: '8px',
+                        border: '2px solid #e0e0e0',
+                        fontSize: '14px',
+                        marginTop: '5px'
+                      }}
+                    />
+                  </div>
+
+                  <div className="detail-item">
+                    <span className="detail-label">Prazo:</span>
+                    <input
+                      type="date"
+                      value={novaObra.prazo}
+                      onChange={(e) => setNovaObra({ ...novaObra, prazo: e.target.value })}
+                      style={{
+                        width: '100%',
+                        padding: '10px',
+                        borderRadius: '8px',
+                        border: '2px solid #e0e0e0',
+                        fontSize: '14px',
+                        marginTop: '5px'
+                      }}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', gap: '10px', marginTop: '20px' }}>
+                <button 
+                  onClick={adicionarObra}
+                  style={{
+                    flex: 1,
+                    padding: '15px',
+                    background: '#10b981',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '10px',
+                    fontSize: '16px',
+                    fontWeight: '600',
+                    cursor: 'pointer'
+                  }}
+                >
+                  ✓ Adicionar Obra
+                </button>
+                <button 
+                  onClick={fecharModalAdicionar}
+                  style={{
+                    flex: 1,
+                    padding: '15px',
+                    background: '#ef4444',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '10px',
+                    fontSize: '16px',
+                    fontWeight: '600',
+                    cursor: 'pointer'
+                  }}
+                >
+                  ✗ Cancelar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL DE DETALHES DA OBRA */}
       {showModal && selectedObra && (
         <div className="modal-overlay" onClick={fecharModal}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
@@ -335,7 +715,6 @@ function Obras() {
             </div>
 
             <div className="modal-body">
-              {/* ===== EQUIPE ===== */}
               <div className="detail-section">
                 <h3>👥 Equipe Responsável</h3>
                 <div className="detail-grid">
@@ -354,128 +733,6 @@ function Obras() {
                 </div>
               </div>
 
-              {/* ===== INFORMAÇÕES DO PROJETO ===== */}
-              <div className="detail-section">
-                <h3>⚡ Informações do Projeto</h3>
-                <div className="detail-grid">
-                  <div className="detail-item">
-                    <span className="detail-label">Título:</span>
-                    <span className="detail-value">{selectedObra.cliente}</span>
-                  </div>
-                  <div className="detail-item">
-                    <span className="detail-label">Localidade:</span>
-                    <span className="detail-value">{selectedObra.localidade}</span>
-                  </div>
-                  <div className="detail-item">
-                    <span className="detail-label">Critério:</span>
-                    <span className="detail-value">{selectedObra.criterio || 'N/A'}</span>
-                  </div>
-                  <div className="detail-item">
-                    <span className="detail-label">Postes Previstos:</span>
-                    <span className="detail-value">{selectedObra.postesPrevistos}</span>
-                  </div>
-                  <div className="detail-item">
-                    <span className="detail-label">Postes Implantados:</span>
-                    <span className="detail-value">{selectedObra.postesImplantados}</span>
-                  </div>
-                  <div className="detail-item">
-                    <span className="detail-label">Cavas Realizadas:</span>
-                    <span className="detail-value">{selectedObra.cavasRealizadas}</span>
-                  </div>
-                  <div className="detail-item">
-                    <span className="detail-label">Clientes Previstos:</span>
-                    <span className="detail-value">{selectedObra.clientesPrevistos}</span>
-                  </div>
-                  <div className="detail-item">
-                    <span className="detail-label">Progresso:</span>
-                    <span className="detail-value">{selectedObra.progresso}%</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* ===== DATAS E PRAZOS ===== */}
-              <div className="detail-section">
-                <h3>📅 Datas e Prazos</h3>
-                <div className="detail-grid">
-                  {selectedObra.dataInicio && (
-                    <div className="detail-item">
-                      <span className="detail-label">Data de Início:</span>
-                      <span className="detail-value">{selectedObra.dataInicio}</span>
-                    </div>
-                  )}
-                  {selectedObra.dataTermino && (
-                    <div className="detail-item">
-                      <span className="detail-label">Data de Término:</span>
-                      <span className="detail-value">{selectedObra.dataTermino}</span>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* ===== PROJETOS RELACIONADOS ===== */}
-              {(selectedObra.projetoKit || selectedObra.projetoMedidor) && (
-                <div className="detail-section">
-                  <h3>📋 Projetos Relacionados</h3>
-                  <div className="detail-grid">
-                    {selectedObra.projetoKit && (
-                      <div className="detail-item">
-                        <span className="detail-label">Projeto Kit:</span>
-                        <span className="detail-value">{selectedObra.projetoKit}</span>
-                      </div>
-                    )}
-                    {selectedObra.projetoMedidor && (
-                      <div className="detail-item">
-                        <span className="detail-label">Projeto Medidor:</span>
-                        <span className="detail-value">{selectedObra.projetoMedidor}</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {/* ===== VISITA PRÉVIA ===== */}
-              {(selectedObra.dataVisitaPrevia || selectedObra.observacaoVisita) && (
-                <div className="detail-section">
-                  <h3>🔍 Visita Prévia</h3>
-                  <div className="detail-grid">
-                    {selectedObra.dataVisitaPrevia && (
-                      <div className="detail-item">
-                        <span className="detail-label">Data da Visita:</span>
-                        <span className="detail-value">{selectedObra.dataVisitaPrevia}</span>
-                      </div>
-                    )}
-                    {selectedObra.observacaoVisita && (
-                      <div className="detail-item full-width">
-                        <span className="detail-label">Observações da Visita:</span>
-                        <span className="detail-value observation">{selectedObra.observacaoVisita}</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {/* ===== PRÉ-FECHAMENTO E RESERVAS ===== */}
-              {(selectedObra.analisePreFechamento || selectedObra.dataSolicitacaoReserva) && (
-                <div className="detail-section">
-                  <h3>📋 Análises e Solicitações</h3>
-                  <div className="detail-grid">
-                    {selectedObra.analisePreFechamento && (
-                      <div className="detail-item full-width">
-                        <span className="detail-label">Análise Pré-Fechamento:</span>
-                        <span className="detail-value">{selectedObra.analisePreFechamento}</span>
-                      </div>
-                    )}
-                    {selectedObra.dataSolicitacaoReserva && (
-                      <div className="detail-item">
-                        <span className="detail-label">Data Solicitação Reserva:</span>
-                        <span className="detail-value">{selectedObra.dataSolicitacaoReserva}</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {/* ===== MAPA ===== */}
               {selectedObra.hasCoordinates && (
                 <div className="detail-section">
                   <h3>📍 Localização</h3>
@@ -496,10 +753,89 @@ function Obras() {
                 </div>
               )}
 
-              {/* ===== ANOTAÇÕES ===== */}
-              {selectedObra.anotacoes && (
+              <div className="detail-section">
+                <h3>🔍 Visita Prévia</h3>
+                <div className="detail-grid">
+                  {selectedObra.dataVisitaPrevia && selectedObra.dataVisitaPrevia !== 'nan' && (
+                    <div className="detail-item full-width">
+                      <span className="detail-label">Data da Visita:</span>
+                      <span className="detail-value">{selectedObra.dataVisitaPrevia}</span>
+                    </div>
+                  )}
+                  {selectedObra.observacaoVisita && selectedObra.observacaoVisita !== 'nan' && (
+                    <div className="detail-item full-width">
+                      <span className="detail-label">Observações:</span>
+                      <span className="detail-value observation">{selectedObra.observacaoVisita}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="detail-section">
+                <h3>📋 Análises e Solicitações</h3>
+                <div className="detail-grid">
+                  {selectedObra.analisePreFechamento && selectedObra.analisePreFechamento !== 'nan' && (
+                    <div className="detail-item full-width">
+                      <span className="detail-label">Análise Pré-Fechamento:</span>
+                      <span className="detail-value">{selectedObra.analisePreFechamento}</span>
+                    </div>
+                  )}
+                  {selectedObra.dataSolicitacaoReserva && selectedObra.dataSolicitacaoReserva !== 'nan' && (
+                    <div className="detail-item">
+                      <span className="detail-label">Data Solicitação Reserva:</span>
+                      <span className="detail-value">{selectedObra.dataSolicitacaoReserva}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="detail-section">
+                <h3>⚡ Informações do Projeto</h3>
+                <div className="detail-grid">
+                  <div className="detail-item">
+                    <span className="detail-label">Título:</span>
+                    <span className="detail-value">{selectedObra.cliente}</span>
+                  </div>
+                  <div className="detail-item">
+                    <span className="detail-label">Localidade:</span>
+                    <span className="detail-value">{selectedObra.localidade}</span>
+                  </div>
+                  {selectedObra.projetoMedidor && selectedObra.projetoMedidor !== 'nan' && (
+                    <div className="detail-item">
+                      <span className="detail-label">Projeto Medidor:</span>
+                      <span className="detail-value">{selectedObra.projetoMedidor}</span>
+                    </div>
+                  )}
+                  <div className="detail-item">
+                    <span className="detail-label">Postes Previstos:</span>
+                    <span className="detail-value">{selectedObra.postesPrevistos}</span>
+                  </div>
+                  <div className="detail-item">
+                    <span className="detail-label">Postes Implantados:</span>
+                    <span className="detail-value">{selectedObra.postesImplantados}</span>
+                  </div>
+                  <div className="detail-item">
+                    <span className="detail-label">Progresso:</span>
+                    <span className="detail-value">{selectedObra.progresso}%</span>
+                  </div>
+                  {selectedObra.dataInicio && selectedObra.dataInicio !== 'nan' && (
+                    <div className="detail-item">
+                      <span className="detail-label">Data Início:</span>
+                      <span className="detail-value">{selectedObra.dataInicio}</span>
+                    </div>
+                  )}
+                  {selectedObra.prazo && selectedObra.prazo !== 'nan' && (
+                    <div className="detail-item">
+                      <span className="detail-label">Prazo:</span>
+                      <span className="detail-value">{selectedObra.prazo}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {selectedObra.anotacoes && selectedObra.anotacoes !== 'nan' && (
                 <div className="detail-section">
-                  <h3>📝 Anotações Gerais</h3>
+                  <h3>📝 Anotações</h3>
                   <div className="anotacoes-box">
                     {selectedObra.anotacoes}
                   </div>

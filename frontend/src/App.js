@@ -1,19 +1,12 @@
-// src/App.js - REFATORADO E MODULAR
-import React, { useState, useEffect } from 'react';
+// src/App.js
+import React, { useState, useEffect, useRef } from 'react';
 import './App.css';
 import { ObrasIcon, SegurancaIcon, FrotaIcon, DashboardsIcon } from './components/SVGIcon';
-
-// Importar páginas modulares
-import Home from './pages/Home';
 import Obras from './pages/Obras';
-import Seguranca from './pages/Seguranca';
-import Frota from './pages/Frota';
-import Dashboards from './pages/Dashboards';
 
 const API_URL = 'http://localhost:5000/api';
 
 function App() {
-  // ===== ESTADOS =====
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -22,7 +15,6 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [currentPage, setCurrentPage] = useState('home');
 
-  // ===== VERIFICAR LOGIN SALVO =====
   useEffect(() => {
     const savedToken = localStorage.getItem('token');
     const savedUser = localStorage.getItem('username');
@@ -33,7 +25,6 @@ function App() {
     }
   }, []);
 
-  // ===== FUNÇÃO DE LOGIN =====
   const handleLogin = async () => {
     setError('');
     setLoading(true);
@@ -44,7 +35,6 @@ function App() {
       return;
     }
 
-    // Modo de teste (remover em produção)
     if (username === 'admin' && password === '123456') {
       localStorage.setItem('token', 'fake-token-123');
       localStorage.setItem('username', username);
@@ -83,7 +73,6 @@ function App() {
     }
   };
 
-  // ===== FUNÇÃO DE LOGOUT =====
   const handleLogout = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('username');
@@ -93,7 +82,6 @@ function App() {
     setCurrentPage('home');
   };
 
-  // ===== TELA DE LOGIN =====
   if (!isLoggedIn) {
     return (
       <div className="login-container">
@@ -143,34 +131,202 @@ function App() {
             <button onClick={handleLogin} className="btn-primary" disabled={loading}>
               {loading ? 'Entrando...' : 'Entrar'}
             </button>
+
           </div>
         </div>
       </div>
     );
   }
 
-  // ===== RENDERIZAR PÁGINA ATUAL =====
+  const HomePage = () => {
+    const [scrollPosition, setScrollPosition] = useState(0);
+    const carouselRef = useRef(null);
+    const images = Array.from({ length: 20 }, (_, i) => `/carousel/${i + 1}.jpeg`);
+
+    useEffect(() => {
+      const interval = setInterval(() => {
+        setScrollPosition(prev => prev + 1);
+      }, 30);
+      return () => clearInterval(interval);
+    }, []);
+
+    useEffect(() => {
+      if (carouselRef.current) {
+        const maxScroll = carouselRef.current.scrollWidth / 2;
+        if (scrollPosition >= maxScroll) {
+          setScrollPosition(0);
+        }
+        carouselRef.current.scrollLeft = scrollPosition;
+      }
+    }, [scrollPosition]);
+
+    return (
+      <div>
+        <div className="carousel-container">
+          <div className="carousel-wrapper" ref={carouselRef}>
+            <div className="carousel-track">
+              {[...images, ...images].map((img, index) => (
+                <div key={index} className="carousel-item">
+                  <img src={img} alt={`Slide ${(index % 20) + 1}`} />
+                </div>
+              ))}
+            </div>
+          </div>
+          <img 
+            src="/Logos/Mariua25Branca.png" 
+            alt="Mariua Branca" 
+            className="carousel-logo"
+          />
+        </div>
+
+        <div className="welcome-card">
+          <h1>Olá, {currentUser}! 👋</h1>
+          <p>Bem-vindo à sua página inicial. Navegue pelo menu abaixo para acessar as diferentes seções.</p>
+        </div>
+
+        <div className="cards-grid">
+          <button className="card card-blue" onClick={() => setCurrentPage('obras')}>
+            <div className="card-icon">
+              <ObrasIcon size={80} color="#ffffff" />
+            </div>
+            <h3>Obras</h3>
+            <p>Gerencie e acompanhe todas as obras em andamento</p>
+          </button>
+
+          <button className="card card-purple" onClick={() => setCurrentPage('seguranca')}>
+            <div className="card-icon">
+              <SegurancaIcon size={80} color="#ffffff" />
+            </div>
+            <h3>Segurança</h3>
+            <p>Controle de acesso e relatórios de segurança</p>
+          </button>
+
+          <button className="card card-pink" onClick={() => setCurrentPage('frota')}>
+            <div className="card-icon">
+              <FrotaIcon size={80} color="#ffffff" />
+            </div>
+            <h3>Frota</h3>
+            <p>Gestão completa da frota de veículos</p>
+          </button>
+
+          <button className="card card-green" onClick={() => setCurrentPage('dashboards')}>
+            <div className="card-icon">
+              <DashboardsIcon size={80} color="#ffffff" />
+            </div>
+            <h3>Dashboards</h3>
+            <p>Visualize métricas e indicadores importantes</p>
+          </button>
+        </div>
+      </div>
+    );
+  };
+
+  const SegurancaPage = () => (
+    <div>
+      <div className="page-header">
+        <h1>🛡️ Controle de Segurança</h1>
+        <p>Monitoramento de acessos e segurança</p>
+      </div>
+      <div className="stats-grid">
+        <div className="stat-card stat-green">
+          <div className="stat-icon">✓</div>
+          <div className="stat-content">
+            <h3>45</h3>
+            <p>Presentes</p>
+          </div>
+        </div>
+        <div className="stat-card stat-red">
+          <div className="stat-icon">✗</div>
+          <div className="stat-content">
+            <h3>12</h3>
+            <p>Ausentes</p>
+          </div>
+        </div>
+        <div className="stat-card stat-blue">
+          <div className="stat-icon">👥</div>
+          <div className="stat-content">
+            <h3>8</h3>
+            <p>Visitantes</p>
+          </div>
+        </div>
+        <div className="stat-card stat-orange">
+          <div className="stat-icon">⚠</div>
+          <div className="stat-content">
+            <h3>2</h3>
+            <p>Alertas</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  const FrotaPage = () => (
+    <div>
+      <div className="page-header">
+        <h1>🚗 Gestão de Frota</h1>
+        <p>Controle completo de veículos e equipamentos</p>
+      </div>
+      <div className="frota-summary">
+        <div className="summary-item">
+          <div className="summary-number">5</div>
+          <div className="summary-label">Total de Veículos</div>
+        </div>
+        <div className="summary-item">
+          <div className="summary-number">2</div>
+          <div className="summary-label">Em Uso</div>
+        </div>
+        <div className="summary-item">
+          <div className="summary-number">2</div>
+          <div className="summary-label">Disponíveis</div>
+        </div>
+        <div className="summary-item">
+          <div className="summary-number">1</div>
+          <div className="summary-label">Em Manutenção</div>
+        </div>
+      </div>
+    </div>
+  );
+
+  const DashboardsPage = () => (
+    <div>
+      <div className="page-header">
+        <h1>📊 Dashboards</h1>
+        <p>Visão geral de todas as operações</p>
+      </div>
+      <div className="metrics-grid">
+        <div className="metric-card metric-blue">
+          <div className="metric-icon">📋</div>
+          <div className="metric-info">
+            <h2>12</h2>
+            <p>Obras Ativas</p>
+            <span className="metric-trend positive">↑ 15% vs mês anterior</span>
+          </div>
+        </div>
+        <div className="metric-card metric-green">
+          <div className="metric-icon">👷</div>
+          <div className="metric-info">
+            <h2>145</h2>
+            <p>Colaboradores</p>
+            <span className="metric-trend positive">↑ 8% vs mês anterior</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
   const renderPage = () => {
     switch (currentPage) {
-      case 'home': 
-        return <Home currentUser={currentUser} onNavigate={setCurrentPage} />;
-      case 'obras': 
-        return <Obras />;
-      case 'seguranca': 
-        return <Seguranca />;
-      case 'frota': 
-        return <Frota />;
-      case 'dashboards': 
-        return <Dashboards />;
-      default: 
-        return <Home currentUser={currentUser} onNavigate={setCurrentPage} />;
+      case 'home': return <HomePage />;
+      case 'obras': return <Obras />;
+      case 'seguranca': return <SegurancaPage />;
+      case 'frota': return <FrotaPage />;
+      case 'dashboards': return <DashboardsPage />;
+      default: return <HomePage />;
     }
   };
 
-  // ===== APLICAÇÃO PRINCIPAL =====
   return (
     <div className="app">
-      {/* NAVBAR */}
       <nav className="navbar">
         <div className="nav-content">
           <div className="nav-brand">
@@ -183,36 +339,11 @@ function App() {
           </div>
 
           <div className="nav-menu">
-            <button 
-              className={currentPage === 'home' ? 'nav-link active' : 'nav-link'} 
-              onClick={() => setCurrentPage('home')}
-            >
-              Home
-            </button>
-            <button 
-              className={currentPage === 'obras' ? 'nav-link active' : 'nav-link'} 
-              onClick={() => setCurrentPage('obras')}
-            >
-              Obras
-            </button>
-            <button 
-              className={currentPage === 'seguranca' ? 'nav-link active' : 'nav-link'} 
-              onClick={() => setCurrentPage('seguranca')}
-            >
-              Segurança
-            </button>
-            <button 
-              className={currentPage === 'frota' ? 'nav-link active' : 'nav-link'} 
-              onClick={() => setCurrentPage('frota')}
-            >
-              Frota
-            </button>
-            <button 
-              className={currentPage === 'dashboards' ? 'nav-link active' : 'nav-link'} 
-              onClick={() => setCurrentPage('dashboards')}
-            >
-              Dashboards
-            </button>
+            <button className={currentPage === 'home' ? 'nav-link active' : 'nav-link'} onClick={() => setCurrentPage('home')}>Home</button>
+            <button className={currentPage === 'obras' ? 'nav-link active' : 'nav-link'} onClick={() => setCurrentPage('obras')}>Obras</button>
+            <button className={currentPage === 'seguranca' ? 'nav-link active' : 'nav-link'} onClick={() => setCurrentPage('seguranca')}>Segurança</button>
+            <button className={currentPage === 'frota' ? 'nav-link active' : 'nav-link'} onClick={() => setCurrentPage('frota')}>Frota</button>
+            <button className={currentPage === 'dashboards' ? 'nav-link active' : 'nav-link'} onClick={() => setCurrentPage('dashboards')}>Dashboards</button>
           </div>
           
           <div className="nav-actions">
@@ -235,7 +366,6 @@ function App() {
         </div>
       </nav>
 
-      {/* CONTEÚDO PRINCIPAL */}
       <main className="main-content">
         {renderPage()}
       </main>
