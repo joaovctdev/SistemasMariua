@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import html2canvas from 'html2canvas';
 
 const API_URL = 'http://localhost:5000/api';
 
@@ -8,6 +9,7 @@ function Obras() {
   const [error, setError] = useState('');
   const [selectedObra, setSelectedObra] = useState(null);
   const [showModal, setShowModal] = useState(false);
+  const [obrasDoDia, setObrasDoDia] = useState([]);
 
   useEffect(() => {
     carregarObras();
@@ -23,6 +25,7 @@ function Obras() {
 
       if (response.ok) {
         setObras(data.obras);
+        filtrarObrasDoDia(data.obras);
       } else {
         setError(data.error || 'Erro ao carregar obras');
       }
@@ -31,6 +34,44 @@ function Obras() {
       setError('Erro ao conectar com o servidor. Certifique-se que o backend está rodando na porta 5000.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const filtrarObrasDoDia = (todasObras) => {
+    const hoje = new Date();
+    hoje.setHours(0, 0, 0, 0);
+
+    const obrasFiltradas = todasObras.filter(obra => {
+      // Se o status for "Em Andamento", incluir na programação do dia
+      return obra.status === 'Em Andamento';
+    });
+
+    console.log('Obras do dia:', obrasFiltradas.length);
+    setObrasDoDia(obrasFiltradas);
+  };
+
+  const baixarTabelaPNG = async () => {
+    const tabela = document.getElementById('tabela-programacao-dia');
+    if (!tabela) {
+      alert('Tabela não encontrada');
+      return;
+    }
+
+    try {
+      const canvas = await html2canvas(tabela, {
+        backgroundColor: '#ffffff',
+        scale: 2,
+        logging: false,
+      });
+
+      const link = document.createElement('a');
+      const dataHoje = new Date().toLocaleDateString('pt-BR').replace(/\//g, '-');
+      link.download = `programacao-obras-${dataHoje}.png`;
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+    } catch (error) {
+      console.error('Erro ao gerar PNG:', error);
+      alert('Erro ao gerar imagem da tabela');
     }
   };
 
@@ -54,12 +95,18 @@ function Obras() {
     }
   };
 
+  const dataHoje = new Date().toLocaleDateString('pt-BR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric'
+  });
+
   return (
     <div>
       <div className="page-header">
         <div className="header-content">
           <div>
-            <h1>Gestão de Obras</h1>
+            <h1>📋 Gestão de Obras</h1>
             <p>Acompanhe o andamento de todas as obras</p>
           </div>
           <button onClick={carregarObras} className="refresh-button" disabled={loading}>
@@ -73,6 +120,70 @@ function Obras() {
         </div>
       </div>
 
+      {/* PROGRAMAÇÃO DO DIA */}
+      {obrasDoDia.length > 0 && (
+        <div className="programacao-dia-container">
+          <div className="programacao-header">
+            <h2>📅 PROGRAMAÇÃO DO DIA</h2>
+            <button onClick={baixarTabelaPNG} className="btn-download">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <polyline points="7 10 12 15 17 10" />
+                <line x1="12" y1="15" x2="12" y2="3" />
+              </svg>
+              Baixar PNG
+            </button>
+          </div>
+
+          <div id="tabela-programacao-dia" className="tabela-programacao">
+            <div className="tabela-header-prog">
+              <img src="/Logos/Mariua26Cor.png" alt="Logo Mariua" className="logo-tabela" />
+              <div className="tabela-title">
+                <h3>🏗️ PROGRAMAÇÃO DE OBRAS</h3>
+                <p>Controle e acompanhamento de Obras - Novembro</p>
+                <p className="data-hoje">Data de hoje: {dataHoje}</p>
+              </div>
+            </div>
+
+            <table className="table-prog-dia">
+              <thead>
+                <tr>
+                  <th>OBRA</th>
+                  <th>ENCARREGADO</th>
+                  <th>SUPERVISOR</th>
+                  <th>TÍTULO</th>
+                  <th>MUNICÍPIO</th>
+                  <th>ATIVIDADE DO DIA</th>
+                  <th>CRITÉRIO</th>
+                  <th>STATUS</th>
+                </tr>
+              </thead>
+              <tbody>
+                {obrasDoDia.map(obra => (
+                  <tr key={obra.id}>
+                    <td><strong>{obra.projeto}</strong></td>
+                    <td>{obra.encarregado}</td>
+                    <td>{obra.supervisor}</td>
+                    <td>{obra.cliente}</td>
+                    <td>{obra.localidade}</td>
+                    <td>{obra.necessidade || 'IMPLANTAÇÃO'}</td>
+                    <td>{obra.criterio || 'QLP'}</td>
+                    <td>
+                      <span 
+                        className="status-pill-prog" 
+                        style={{ backgroundColor: getStatusColor(obra.status, obra.isEnergizada) }}
+                      >
+                        {obra.status}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
       {obras.length > 0 && (
         <div className="obras-summary">
           <div className="summary-card">
@@ -80,8 +191,8 @@ function Obras() {
             <div className="summary-label">Total de Obras</div>
           </div>
           <div className="summary-card">
-            <div className="summary-number">{obras.filter(o => o.status === 'Em Andamento').length}</div>
-            <div className="summary-label">Em Andamento</div>
+            <div className="summary-number">{obrasDoDia.length}</div>
+            <div className="summary-label">Obras do Dia</div>
           </div>
           <div className="summary-card">
             <div className="summary-number">{obras.filter(o => o.isEnergizada).length}</div>
@@ -205,7 +316,6 @@ function Obras() {
             </div>
 
             <div className="modal-body">
-              {/* EQUIPE */}
               <div className="detail-section">
                 <h3>👥 Equipe Responsável</h3>
                 <div className="detail-grid">
@@ -224,8 +334,7 @@ function Obras() {
                 </div>
               </div>
 
-              {/* MAPA */}
-              {selectedObra.latitude && selectedObra.longitude && selectedObra.latitude !== 'nan' && selectedObra.longitude !== 'nan' && (
+              {selectedObra.hasCoordinates && (
                 <div className="detail-section">
                   <h3>📍 Localização</h3>
                   <div className="map-container">
@@ -245,7 +354,6 @@ function Obras() {
                 </div>
               )}
 
-              {/* VISITA PRÉVIA */}
               <div className="detail-section">
                 <h3>🔍 Visita Prévia</h3>
                 <div className="detail-grid">
@@ -264,7 +372,6 @@ function Obras() {
                 </div>
               </div>
 
-              {/* PRÉ-FECHAMENTO */}
               <div className="detail-section">
                 <h3>📋 Análises e Solicitações</h3>
                 <div className="detail-grid">
@@ -283,7 +390,6 @@ function Obras() {
                 </div>
               </div>
 
-              {/* INFORMAÇÕES DO PROJETO */}
               <div className="detail-section">
                 <h3>⚡ Informações do Projeto</h3>
                 <div className="detail-grid">
@@ -328,7 +434,6 @@ function Obras() {
                 </div>
               </div>
 
-              {/* ANOTAÇÕES */}
               {selectedObra.anotacoes && selectedObra.anotacoes !== 'nan' && (
                 <div className="detail-section">
                   <h3>📝 Anotações</h3>
