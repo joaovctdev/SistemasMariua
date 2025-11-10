@@ -947,6 +947,65 @@ font-size: 48px;
   }
 }
 
+/* ========== ANIMAÇÃO OBRA ATRASADA (VERMELHO) ========== */
+.obra-card.atrasada {
+  border: 2px solid #dc2626;
+  background: linear-gradient(135deg, #fee2e2 0%, #fca5a5 100%);
+}
+
+/* Brilho sutil que percorre a borda - vermelho */
+.obra-card.atrasada::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: linear-gradient(
+    45deg,
+    transparent 30%,
+    rgba(239, 68, 68, 0.15) 50%,
+    transparent 70%
+  );
+  animation: shineSequential 3s ease-in-out infinite;
+  pointer-events: none;
+}
+
+/* Pulso discreto na sombra - vermelho */
+.obra-card.atrasada {
+  animation: subtlePulseRed 3s ease-in-out infinite;
+}
+
+@keyframes subtlePulseRed {
+  0%, 100% {
+    box-shadow:
+      0 4px 15px rgba(239, 68, 68, 0.2),
+      0 0 0 0 rgba(239, 68, 68, 0);
+  }
+  50% {
+    box-shadow:
+      0 4px 20px rgba(239, 68, 68, 0.3),
+      0 0 20px 5px rgba(239, 68, 68, 0.1);
+  }
+}
+
+/* Badge com brilho suave - vermelho */
+.obra-card.atrasada .status-badge {
+  position: relative;
+  overflow: hidden;
+}
+
+.obra-card.atrasada .status-badge::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+  animation: badgeShine 3s ease-in-out infinite;
+}
+
 .obra-header {
   display: flex;
   justify-content: space-between;

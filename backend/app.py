@@ -18,10 +18,61 @@ CORS(app)
 app.config['SECRET_KEY'] = 'sua-chave-secreta-super-segura'
 app.config['UPLOAD_FOLDER'] = 'uploads'
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max
+app.config['ALLOWED_EXTENSIONS'] = {'xlsx', 'xls'}
 
 # Criar pasta de uploads se não existir
 if not os.path.exists(app.config['UPLOAD_FOLDER']):
     os.makedirs(app.config['UPLOAD_FOLDER'])
+
+# Criar pasta para programação do dia
+PROGRAMACAO_DIA_FOLDER = os.path.join(app.config['UPLOAD_FOLDER'], 'ProgramacaoNovembro')
+if not os.path.exists(PROGRAMACAO_DIA_FOLDER):
+    os.makedirs(PROGRAMACAO_DIA_FOLDER)
+
+# Variável global para armazenar a programação do dia atual
+programacao_dia_data = []
+
+def allowed_file(filename):
+    """Verifica se o arquivo tem uma extensão permitida"""
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in app.config['ALLOWED_EXTENSIONS']
+
+def processar_programacao_dia(caminho_arquivo):
+    """Processa arquivo Excel da programação do dia com estrutura específica"""
+    try:
+        # Ler Excel
+        df = pd.read_excel(caminho_arquivo, header=0)
+
+        print(f"📊 Colunas encontradas: {df.columns.tolist()}")
+        print(f"📊 Total de linhas: {len(df)}")
+
+        programacao = []
+
+        for idx, row in df.iterrows():
+            # Verificar se a linha tem dados (pelo menos projeto preenchido)
+            if pd.isna(row.iloc[1]) or str(row.iloc[1]).strip() == '':
+                continue  # Pular linhas vazias
+
+            # Estrutura: Data, Projeto, Supervisor, Encarregado, Título, Município, Atividade Programada, Critério
+            item = {
+                'id': idx + 1,
+                'data': str(row.iloc[0]) if pd.notna(row.iloc[0]) else '',
+                'projeto': str(row.iloc[1]) if pd.notna(row.iloc[1]) else '',
+                'supervisor': str(row.iloc[2]) if pd.notna(row.iloc[2]) else '',
+                'encarregado': str(row.iloc[3]) if pd.notna(row.iloc[3]) else '',
+                'titulo': str(row.iloc[4]) if pd.notna(row.iloc[4]) else '',
+                'municipio': str(row.iloc[5]) if pd.notna(row.iloc[5]) else '',
+                'atividadeProgramada': str(row.iloc[6]) if pd.notna(row.iloc[6]) else '',
+                'criterio': str(row.iloc[7]) if pd.notna(row.iloc[7]) else ''
+            }
+
+            programacao.append(item)
+
+        print(f"✅ Total de itens válidos processados: {len(programacao)}")
+        return programacao
+
+    except Exception as e:
+        print(f"❌ Erro ao processar programação do dia: {str(e)}")
+        raise
 
 # Banco de dados simulado
 users_db = {
@@ -342,30 +393,172 @@ def login():
     
     return jsonify({'error': 'Credenciais inválidas'}), 401
 
-# Endpoint para buscar obras
+# Endpoint para upload de programação do dia
+@app.route('/api/programacao-dia/upload', methods=['POST', 'OPTIONS'])
+def upload_programacao_dia():
+    global programacao_dia_data
+
+    # Handle CORS preflight
+    if request.method == 'OPTIONS':
+        return '', 200
+
+    try:
+        print("📤 Recebendo upload de programação do dia...")
+        print(f"📋 Files na request: {list(request.files.keys())}")
+
+        # Verificar se há arquivo na requisição
+        if 'file' not in request.files:
+            print("❌ Nenhum arquivo na request")
+            return jsonify({'error': 'Nenhum arquivo enviado', 'success': False}), 400
+
+        file = request.files['file']
+        print(f"📄 Arquivo recebido: {file.filename}")
+
+        # Verificar se o arquivo tem nome
+        if file.filename == '':
+            print("❌ Nome de arquivo vazio")
+            return jsonify({'error': 'Nome de arquivo vazio', 'success': False}), 400
+
+        # Verificar extensão do arquivo
+        if not allowed_file(file.filename):
+            print(f"❌ Extensão não permitida: {file.filename}")
+            return jsonify({
+                'error': 'Tipo de arquivo não permitido. Apenas arquivos .xlsx ou .xls são aceitos',
+                'success': False
+            }), 400
+
+        # Salvar temporariamente para processar
+        temp_filepath = os.path.join(app.config['UPLOAD_FOLDER'], 'temp_programacao_dia.xlsx')
+        file.save(temp_filepath)
+
+        print(f"✅ Arquivo temporário salvo: {temp_filepath}")
+        print(f"✅ Tamanho do arquivo: {os.path.getsize(temp_filepath)} bytes")
+
+        # Processar o arquivo
+        try:
+            programacao_dia_data = processar_programacao_dia(temp_filepath)
+            total_itens = len(programacao_dia_data)
+            print(f"✅ Programação processada: {total_itens} itens encontrados")
+
+            # Remover arquivo temporário
+            os.remove(temp_filepath)
+
+            return jsonify({
+                'success': True,
+                'message': f'Programação do dia carregada com sucesso!',
+                'total_itens': total_itens,
+                'programacao': programacao_dia_data
+            }), 200
+
+        except Exception as e:
+            # Remover arquivo temporário em caso de erro
+            if os.path.exists(temp_filepath):
+                os.remove(temp_filepath)
+            print(f"❌ Erro ao processar programação: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            return jsonify({
+                'error': f'Erro ao processar arquivo: {str(e)}. Verifique se as colunas estão na ordem: Data, Projeto, Supervisor, Encarregado, Título, Município, Atividade Programada, Critério',
+                'success': False
+            }), 400
+
+    except Exception as e:
+        print(f"❌ Erro no upload: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            'error': f'Erro no upload: {str(e)}',
+            'success': False
+        }), 500
+
+# Endpoint para buscar programação do dia atual
+@app.route('/api/programacao-dia', methods=['GET'])
+def get_programacao_dia():
+    global programacao_dia_data
+
+    return jsonify({
+        'success': True,
+        'total': len(programacao_dia_data),
+        'programacao': programacao_dia_data
+    }), 200
+
+# Endpoint para salvar programação do dia na pasta ProgramacaoNovembro
+@app.route('/api/programacao-dia/salvar', methods=['POST'])
+def salvar_programacao_dia():
+    global programacao_dia_data
+
+    try:
+        if not programacao_dia_data:
+            return jsonify({
+                'error': 'Nenhuma programação carregada. Faça upload de um arquivo primeiro.',
+                'success': False
+            }), 400
+
+        # Obter dados atualizados do request (caso tenha modificações)
+        data = request.get_json()
+        if data and 'programacao' in data:
+            programacao_dia_data = data['programacao']
+
+        # Nome do arquivo com data do dia
+        data_hoje = datetime.now().strftime('%d-%m-%Y')
+        filename = f"{data_hoje}.xlsx"
+        filepath = os.path.join(PROGRAMACAO_DIA_FOLDER, filename)
+
+        # Criar DataFrame com as colunas na ordem especificada
+        df = pd.DataFrame(programacao_dia_data)
+
+        # Reordenar colunas
+        colunas_ordenadas = ['data', 'projeto', 'supervisor', 'encarregado', 'titulo', 'municipio', 'atividadeProgramada', 'criterio']
+        df = df[colunas_ordenadas]
+
+        # Renomear colunas para o Excel
+        df.columns = ['Data', 'Projeto', 'Supervisor', 'Encarregado', 'Título', 'Município', 'Atividade Programada', 'Critério']
+
+        # Salvar no Excel
+        df.to_excel(filepath, index=False, engine='openpyxl')
+
+        print(f"✅ Programação salva: {filepath}")
+
+        return jsonify({
+            'success': True,
+            'message': f'Programação salva com sucesso!',
+            'filename': filename,
+            'filepath': filepath
+        }), 200
+
+    except Exception as e:
+        print(f"❌ Erro ao salvar programação: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            'error': f'Erro ao salvar programação: {str(e)}',
+            'success': False
+        }), 500
+
+# Endpoint para buscar obras do mês (arquivo fixo)
 @app.route('/api/obras', methods=['GET'])
 @app.route('/api/obras/', methods=['GET'])
 def get_obras():
     try:
-        # Caminho da planilha no backend
-        planilha_path = os.path.join('uploads', 'PROGRAMACAO - NOVEMBRO.xlsx')
-        
+        # Arquivo fixo para obras do mês
+        planilha_path = os.path.join(app.config['UPLOAD_FOLDER'], 'PROGRAMACAO - NOVEMBRO.xlsx')
+
         print(f"Procurando planilha em: {planilha_path}")
         print(f"Arquivo existe? {os.path.exists(planilha_path)}")
-        
+
         if not os.path.exists(planilha_path):
-            return jsonify({'error': 'Planilha não encontrada no servidor'}), 404
-        
+            return jsonify({'error': 'Planilha PROGRAMACAO - NOVEMBRO.xlsx não encontrada no servidor'}), 404
+
         obras = processar_planilha(planilha_path)
-        
+
         print(f"Total de obras processadas: {len(obras)}")
-        
+
         return jsonify({
             'success': True,
             'total': len(obras),
             'obras': obras
         }), 200
-        
+
     except Exception as e:
         print(f"Erro ao buscar obras: {e}")
         return jsonify({'error': str(e)}), 500
@@ -393,12 +586,13 @@ def adicionar_obra():
     try:
         data = request.get_json()
         print(f"📥 Dados recebidos para adicionar: {data}")
-        
-        planilha_path = os.path.join('uploads', 'PROGRAMACAO - NOVEMBRO.xlsx')
-        
+
+        # Arquivo fixo para obras do mês
+        planilha_path = os.path.join(app.config['UPLOAD_FOLDER'], 'PROGRAMACAO - NOVEMBRO.xlsx')
+
         if not os.path.exists(planilha_path):
             print("❌ ERRO: Planilha não encontrada")
-            return jsonify({'error': 'Planilha não encontrada'}), 404
+            return jsonify({'error': 'Planilha PROGRAMACAO - NOVEMBRO.xlsx não encontrada'}), 404
         
         # Verificar se o arquivo está aberto
         try:
@@ -479,13 +673,15 @@ def adicionar_obra():
 def atualizar_obra(obra_id):
     try:
         data = request.get_json()
-        planilha_path = os.path.join('uploads', 'PROGRAMACAO - NOVEMBRO.xlsx')
-        
+
+        # Arquivo fixo para obras do mês
+        planilha_path = os.path.join(app.config['UPLOAD_FOLDER'], 'PROGRAMACAO - NOVEMBRO.xlsx')
+
         print(f"📝 Tentando atualizar obra ID: {obra_id}")
         print(f"📥 Dados recebidos: {data}")
-        
+
         if not os.path.exists(planilha_path):
-            return jsonify({'error': 'Planilha não encontrada'}), 404
+            return jsonify({'error': 'Planilha PROGRAMACAO - NOVEMBRO.xlsx não encontrada'}), 404
         
         # Verificar se o arquivo está aberto
         try:
@@ -574,10 +770,11 @@ def health():
 @app.route('/api/debug/coordenadas', methods=['GET'])
 def debug_coordenadas():
     try:
-        planilha_path = os.path.join('uploads', 'PROGRAMACAO - NOVEMBRO.xlsx')
-        
+        # Arquivo fixo para obras do mês
+        planilha_path = os.path.join(app.config['UPLOAD_FOLDER'], 'PROGRAMACAO - NOVEMBRO.xlsx')
+
         if not os.path.exists(planilha_path):
-            return jsonify({'error': 'Planilha não encontrada'}), 404
+            return jsonify({'error': 'Planilha PROGRAMACAO - NOVEMBRO.xlsx não encontrada'}), 404
         
         df = pd.read_excel(planilha_path, header=0)
         
@@ -606,6 +803,8 @@ def debug_coordenadas():
         return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':
-    print("Iniciando servidor Flask...")
-    print("Verifique se a planilha está em: backend/uploads/PROGRAMACAO - NOVEMBRO.xlsx")
+    print("🚀 Iniciando servidor Flask...")
+    print(f"📁 Diretório de uploads: {app.config['UPLOAD_FOLDER']}")
+    print("📤 Para carregar dados, faça upload de um arquivo Excel via interface web")
+    print("🌐 API rodando em: http://localhost:5000")
     app.run(debug=True, port=5000)
