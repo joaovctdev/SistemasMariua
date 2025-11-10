@@ -598,6 +598,12 @@ function Obras() {
   const [programacaoDia, setProgramacaoDia] = useState([]);
   const [uploadProgress, setUploadProgress] = useState(null);
 
+  // Estados dos filtros
+  const [filtroMes, setFiltroMes] = useState('todos');
+  const [filtroSupervisor, setFiltroSupervisor] = useState('todos');
+  const [filtroEncarregado, setFiltroEncarregado] = useState('todos');
+  const [filtroStatus, setFiltroStatus] = useState('todos');
+
   useEffect(() => {
     carregarObras();
     carregarProgramacaoDia();
@@ -798,12 +804,109 @@ function Obras() {
     return '#6b7280'; // Cinza padrão
   };
 
+  // Função para obter mês de uma data
+  const getMesDaData = (dataStr) => {
+    if (!dataStr || dataStr === 'nan') return null;
+
+    try {
+      if (typeof dataStr === 'string' && dataStr.includes('/')) {
+        const partes = dataStr.split('/');
+        if (partes.length === 3) {
+          return parseInt(partes[1], 10) - 1; // Retorna mês 0-indexed
+        }
+      }
+      const data = new Date(dataStr);
+      if (!isNaN(data.getTime())) {
+        return data.getMonth();
+      }
+    } catch {
+      return null;
+    }
+    return null;
+  };
+
+  // Função de filtragem
+  const aplicarFiltros = (obra) => {
+    // Filtro de mês (baseado na data de início)
+    if (filtroMes !== 'todos') {
+      const mesObra = getMesDaData(obra.dataInicio);
+      if (mesObra !== parseInt(filtroMes)) {
+        return false;
+      }
+    }
+
+    // Filtro de supervisor
+    if (filtroSupervisor !== 'todos') {
+      if (obra.supervisor !== filtroSupervisor) {
+        return false;
+      }
+    }
+
+    // Filtro de encarregado
+    if (filtroEncarregado !== 'todos') {
+      if (obra.encarregado !== filtroEncarregado) {
+        return false;
+      }
+    }
+
+    // Filtro de status
+    if (filtroStatus !== 'todos') {
+      const status = obra.obraSemana?.toUpperCase() || '';
+      if (!status.includes(filtroStatus.toUpperCase())) {
+        return false;
+      }
+    }
+
+    return true;
+  };
+
+  // Obter listas únicas para os filtros
+  const getSupervisoresUnicos = () => {
+    const supervisores = new Set();
+    obras.forEach(obra => {
+      if (obra.supervisor && obra.supervisor !== 'N/A' && obra.supervisor.trim() !== '') {
+        supervisores.add(obra.supervisor);
+      }
+    });
+    return [...supervisores].sort();
+  };
+
+  const getEncarregadosUnicos = () => {
+    const encarregados = new Set();
+    obras.forEach(obra => {
+      if (obra.encarregado && obra.encarregado !== 'N/A' && obra.encarregado.trim() !== '') {
+        encarregados.add(obra.encarregado);
+      }
+    });
+    return [...encarregados].sort();
+  };
+
+  // Aplicar filtros
+  const obrasFiltradas = obras.filter(aplicarFiltros);
+
+  // Calcular progresso do mês (obras energizadas / total de obras do mês)
+  const calcularProgressoMes = () => {
+    if (filtroMes === 'todos') {
+      const energizadas = obras.filter(o => o.obraSemana?.toUpperCase().includes('ENERGIZADA')).length;
+      return obras.length > 0 ? Math.round((energizadas / obras.length) * 100) : 0;
+    } else {
+      const obrasMes = obras.filter(o => {
+        const mesObra = getMesDaData(o.dataInicio);
+        return mesObra === parseInt(filtroMes);
+      });
+      const energizadasMes = obrasMes.filter(o => o.obraSemana?.toUpperCase().includes('ENERGIZADA')).length;
+      return obrasMes.length > 0 ? Math.round((energizadasMes / obrasMes.length) * 100) : 0;
+    }
+  };
+
+  const progressoMes = calcularProgressoMes();
+
   return (
     <div>
       <div className="page-header">
         <div className="header-content">
           <div>
-            <h1>📋 Gestão de Obras</h1>
+            <h1>Gestão de Obras</h1>
             <p>Acompanhe o andamento de todas as obras</p>
           </div>
           <button onClick={carregarObras} className="refresh-button" disabled={loading}>
@@ -818,28 +921,347 @@ function Obras() {
       </div>
 
       {obras.length > 0 && (
-        <div className="obras-summary">
-          <div className="summary-card">
-            <div className="summary-number">{obras.length}</div>
-            <div className="summary-label">Total de Obras</div>
+        <>
+          <div className="obras-summary">
+            <div className="summary-card">
+              <div className="summary-number">{obras.length}</div>
+              <div className="summary-label">Total de Obras</div>
+            </div>
+            <div className="summary-card">
+              <div className="summary-number">{obras.filter(o => o.obraSemana?.toUpperCase().includes('ATUANDO')).length}</div>
+              <div className="summary-label">Atuando</div>
+            </div>
+            <div className="summary-card">
+              <div className="summary-number">{obras.filter(o => o.obraSemana?.toUpperCase().includes('ENERGIZADA')).length}</div>
+              <div className="summary-label">Energizadas</div>
+            </div>
+            <div className="summary-card">
+              <div className="summary-number">{obras.filter(o => o.obraSemana?.toUpperCase().includes('ATRASADA')).length}</div>
+              <div className="summary-label">Atrasadas</div>
+            </div>
+            <div className="summary-card">
+              <div className="summary-number">{obras.filter(o => o.obraSemana?.toUpperCase().includes('PROGRAMADA')).length}</div>
+              <div className="summary-label">Programadas</div>
+            </div>
           </div>
-          <div className="summary-card">
-            <div className="summary-number">{obras.filter(o => o.obraSemana?.toUpperCase().includes('ATUANDO')).length}</div>
-            <div className="summary-label">Atuando</div>
+
+          {/* Barra de Progresso do Mês */}
+          <div style={{
+            margin: '20px 0',
+            padding: '25px 30px',
+            background: 'linear-gradient(135deg, #f8f9ff 0%, #e8f4f8 100%)',
+            borderRadius: '15px',
+            border: '2px solid #e5e7eb',
+            boxShadow: '0 4px 15px rgba(0, 0, 0, 0.08)'
+          }}>
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginBottom: '15px'
+            }}>
+              <div>
+                <h3 style={{
+                  margin: '0 0 5px 0',
+                  fontSize: '18px',
+                  fontWeight: '700',
+                  color: '#1f2937',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '10px'
+                }}>
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <circle cx="12" cy="12" r="10"/>
+                    <polyline points="12 6 12 12 16 14"/>
+                  </svg>
+                  Progresso de Energização {filtroMes !== 'todos' && `- Mês Selecionado`}
+                </h3>
+                <p style={{
+                  margin: 0,
+                  fontSize: '13px',
+                  color: '#6b7280'
+                }}>
+                  Percentual de obras energizadas {filtroMes !== 'todos' ? 'no mês filtrado' : 'no total'}
+                </p>
+              </div>
+              <div style={{
+                fontSize: '32px',
+                fontWeight: '800',
+                color: progressoMes >= 75 ? '#10b981' : progressoMes >= 50 ? '#f59e0b' : progressoMes >= 25 ? '#3b82f6' : '#ef4444',
+                textShadow: '2px 2px 4px rgba(0, 0, 0, 0.1)'
+              }}>
+                {progressoMes}%
+              </div>
+            </div>
+
+            <div style={{
+              width: '100%',
+              height: '30px',
+              background: 'linear-gradient(135deg, #e5e7eb 0%, #d1d5db 100%)',
+              borderRadius: '15px',
+              overflow: 'hidden',
+              position: 'relative',
+              boxShadow: 'inset 0 2px 4px rgba(0, 0, 0, 0.1)'
+            }}>
+              <div style={{
+                width: `${progressoMes}%`,
+                height: '100%',
+                background: progressoMes >= 75
+                  ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)'
+                  : progressoMes >= 50
+                  ? 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)'
+                  : progressoMes >= 25
+                  ? 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)'
+                  : 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
+                transition: 'width 0.6s ease-in-out',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'flex-end',
+                paddingRight: '10px',
+                color: 'white',
+                fontSize: '12px',
+                fontWeight: '700',
+                boxShadow: '0 2px 8px rgba(0, 0, 0, 0.2)'
+              }}>
+                {progressoMes > 10 && `${progressoMes}%`}
+              </div>
+            </div>
           </div>
-          <div className="summary-card">
-            <div className="summary-number">{obras.filter(o => o.obraSemana?.toUpperCase().includes('ENERGIZADA')).length}</div>
-            <div className="summary-label">Energizadas</div>
+
+          {/* Filtros */}
+          <div style={{
+            display: 'flex',
+            flexWrap: 'wrap',
+            gap: '15px',
+            margin: '25px 0',
+            padding: '25px',
+            background: 'linear-gradient(135deg, #ffffff 0%, #f9fafb 100%)',
+            borderRadius: '15px',
+            border: '2px solid #e5e7eb',
+            boxShadow: '0 4px 15px rgba(0, 0, 0, 0.05)'
+          }}>
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '10px',
+              padding: '10px 15px',
+              background: 'white',
+              borderRadius: '10px',
+              border: '2px solid #e5e7eb',
+              flex: '1 1 200px',
+              minWidth: '200px'
+            }}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#667eea" strokeWidth="2">
+                <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+                <line x1="16" y1="2" x2="16" y2="6"/>
+                <line x1="8" y1="2" x2="8" y2="6"/>
+                <line x1="3" y1="10" x2="21" y2="10"/>
+              </svg>
+              <select
+                value={filtroMes}
+                onChange={(e) => setFiltroMes(e.target.value)}
+                style={{
+                  flex: 1,
+                  border: 'none',
+                  outline: 'none',
+                  fontSize: '14px',
+                  fontWeight: '600',
+                  color: '#374151',
+                  background: 'transparent',
+                  cursor: 'pointer'
+                }}
+              >
+                <option value="todos">📅 Todos os Meses</option>
+                <option value="0">Janeiro</option>
+                <option value="1">Fevereiro</option>
+                <option value="2">Março</option>
+                <option value="3">Abril</option>
+                <option value="4">Maio</option>
+                <option value="5">Junho</option>
+                <option value="6">Julho</option>
+                <option value="7">Agosto</option>
+                <option value="8">Setembro</option>
+                <option value="9">Outubro</option>
+                <option value="10">Novembro</option>
+                <option value="11">Dezembro</option>
+              </select>
+            </div>
+
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '10px',
+              padding: '10px 15px',
+              background: 'white',
+              borderRadius: '10px',
+              border: '2px solid #e5e7eb',
+              flex: '1 1 200px',
+              minWidth: '200px'
+            }}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#8b5cf6" strokeWidth="2">
+                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                <circle cx="9" cy="7" r="4"/>
+                <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+                <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+              </svg>
+              <select
+                value={filtroSupervisor}
+                onChange={(e) => setFiltroSupervisor(e.target.value)}
+                style={{
+                  flex: 1,
+                  border: 'none',
+                  outline: 'none',
+                  fontSize: '14px',
+                  fontWeight: '600',
+                  color: '#374151',
+                  background: 'transparent',
+                  cursor: 'pointer'
+                }}
+              >
+                <option value="todos">👔 Todos os Supervisores</option>
+                {getSupervisoresUnicos().map(sup => (
+                  <option key={sup} value={sup}>{sup}</option>
+                ))}
+              </select>
+            </div>
+
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '10px',
+              padding: '10px 15px',
+              background: 'white',
+              borderRadius: '10px',
+              border: '2px solid #e5e7eb',
+              flex: '1 1 200px',
+              minWidth: '200px'
+            }}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#10b981" strokeWidth="2">
+                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+                <circle cx="12" cy="7" r="4"/>
+              </svg>
+              <select
+                value={filtroEncarregado}
+                onChange={(e) => setFiltroEncarregado(e.target.value)}
+                style={{
+                  flex: 1,
+                  border: 'none',
+                  outline: 'none',
+                  fontSize: '14px',
+                  fontWeight: '600',
+                  color: '#374151',
+                  background: 'transparent',
+                  cursor: 'pointer'
+                }}
+              >
+                <option value="todos">👷 Todos os Encarregados</option>
+                {getEncarregadosUnicos().map(enc => (
+                  <option key={enc} value={enc}>{enc}</option>
+                ))}
+              </select>
+            </div>
+
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '10px',
+              padding: '10px 15px',
+              background: 'white',
+              borderRadius: '10px',
+              border: '2px solid #e5e7eb',
+              flex: '1 1 200px',
+              minWidth: '200px'
+            }}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" strokeWidth="2">
+                <circle cx="12" cy="12" r="10"/>
+                <line x1="12" y1="16" x2="12" y2="12"/>
+                <line x1="12" y1="8" x2="12.01" y2="8"/>
+              </svg>
+              <select
+                value={filtroStatus}
+                onChange={(e) => setFiltroStatus(e.target.value)}
+                style={{
+                  flex: 1,
+                  border: 'none',
+                  outline: 'none',
+                  fontSize: '14px',
+                  fontWeight: '600',
+                  color: '#374151',
+                  background: 'transparent',
+                  cursor: 'pointer'
+                }}
+              >
+                <option value="todos">🎯 Todos os Status</option>
+                <option value="energizada">✅ Energizada</option>
+                <option value="atuando">🔄 Atuando</option>
+                <option value="programada">📋 Programada</option>
+                <option value="atrasada">⚠️ Atrasada</option>
+              </select>
+            </div>
+
+            {/* Badge com contador de resultados */}
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '10px',
+              padding: '10px 20px',
+              background: 'linear-gradient(135deg, #ffae00ff 0%, #ffae00ff 100%)',
+              borderRadius: '10px',
+              color: 'black',
+              fontWeight: '700',
+              fontSize: '14px',
+              boxShadow: '0 4px 10px rgba(102, 126, 234, 0.3)',
+              minWidth: 'fit-content'
+            }}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2">
+                <path d="M3 3h18v18H3z"/>
+                <path d="M9 9h6v6H9z"/>
+              </svg>
+              {obrasFiltradas.length} {obrasFiltradas.length === 1 ? 'Obra' : 'Obras'}
+            </div>
+
+            {/* Botão Limpar Filtros */}
+            {(filtroMes !== 'todos' || filtroSupervisor !== 'todos' || filtroEncarregado !== 'todos' || filtroStatus !== 'todos') && (
+              <button
+                onClick={() => {
+                  setFiltroMes('todos');
+                  setFiltroSupervisor('todos');
+                  setFiltroEncarregado('todos');
+                  setFiltroStatus('todos');
+                }}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  padding: '10px 20px',
+                  background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
+                  border: 'none',
+                  borderRadius: '10px',
+                  color: 'white',
+                  fontWeight: '700',
+                  fontSize: '14px',
+                  cursor: 'pointer',
+                  boxShadow: '0 4px 10px rgba(239, 68, 68, 0.3)',
+                  transition: 'transform 0.2s, box-shadow 0.2s'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.transform = 'translateY(-2px)';
+                  e.currentTarget.style.boxShadow = '0 6px 15px rgba(239, 68, 68, 0.4)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = 'translateY(0)';
+                  e.currentTarget.style.boxShadow = '0 4px 10px rgba(239, 68, 68, 0.3)';
+                }}
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2">
+                  <line x1="18" y1="6" x2="6" y2="18"/>
+                  <line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+                Limpar Filtros
+              </button>
+            )}
           </div>
-          <div className="summary-card">
-            <div className="summary-number">{obras.filter(o => o.obraSemana?.toUpperCase().includes('ATRASADA')).length}</div>
-            <div className="summary-label">Atrasadas</div>
-          </div>
-          <div className="summary-card">
-            <div className="summary-number">{obras.filter(o => o.obraSemana?.toUpperCase().includes('PROGRAMADA')).length}</div>
-            <div className="summary-label">Programadas</div>
-          </div>
-        </div>
+        </>
       )}
 
       {error && (
@@ -874,7 +1296,7 @@ function Obras() {
       )}
 
       <div className="obras-grid">
-        {obras.map(obra => {
+        {obrasFiltradas.map(obra => {
           const isAtrasada = obra.obraSemana?.toUpperCase().includes('ATRASADA');
           const isEnergizada = obra.obraSemana?.toUpperCase().includes('ENERGIZADA');
 
