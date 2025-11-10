@@ -185,16 +185,18 @@ def processar_planilha(caminho_arquivo):
                 prazo = str(row.iloc[9]) if pd.notna(row.iloc[9]) else ''
                 # K - OBRA DA SEMANA
                 obra_semana = str(row.iloc[10]) if pd.notna(row.iloc[10]) else ''
-                # L - NECESSIDADE (ATIVIDADE DO DIA)
-                atividade_dia = str(row.iloc[11]) if pd.notna(row.iloc[11]) else 'IMPLANTAÇÃO'
-                # M - PROGRAMAÇÃO LV
-                programacao_lv = str(row.iloc[12]) if pd.notna(row.iloc[12]) else ''
-                # N - CAVAS REALIZADAS
-                cavas_realizadas = float(row.iloc[13]) if pd.notna(row.iloc[13]) else 0
-                # O - POSTES REALIZADOS
-                postes_implantados = float(row.iloc[14]) if pd.notna(row.iloc[14]) else 0
-                # P - LATITUDE
-                latitude_raw = row.iloc[15] if pd.notna(row.iloc[15]) else None
+                # L - MOTIVO DO ATRASO (NOVA COLUNA)
+                motivo_atraso = str(row.iloc[11]) if pd.notna(row.iloc[11]) else ''
+                # M - NECESSIDADE (ATIVIDADE DO DIA)
+                atividade_dia = str(row.iloc[12]) if pd.notna(row.iloc[12]) else 'IMPLANTAÇÃO'
+                # N - PROGRAMAÇÃO LV
+                programacao_lv = str(row.iloc[13]) if pd.notna(row.iloc[13]) else ''
+                # O - CAVAS REALIZADAS
+                cavas_realizadas = float(row.iloc[14]) if pd.notna(row.iloc[14]) else 0
+                # P - POSTES REALIZADOS
+                postes_implantados = float(row.iloc[15]) if pd.notna(row.iloc[15]) else 0
+                # Q - LATITUDE
+                latitude_raw = row.iloc[16] if pd.notna(row.iloc[16]) else None
                 latitude = None
                 if latitude_raw is not None:
                     try:
@@ -204,8 +206,8 @@ def processar_planilha(caminho_arquivo):
                     except:
                         latitude = None
                 
-                # Q - LONGITUDE
-                longitude_raw = row.iloc[16] if pd.notna(row.iloc[16]) else None
+                # R - LONGITUDE
+                longitude_raw = row.iloc[17] if pd.notna(row.iloc[17]) else None
                 longitude = None
                 if longitude_raw is not None:
                     try:
@@ -214,22 +216,22 @@ def processar_planilha(caminho_arquivo):
                         longitude = float(lng_str)
                     except:
                         longitude = None
-                # R - CLIENTES PREVISTOS
-                clientes_previstos = float(row.iloc[17]) if pd.notna(row.iloc[17]) else 0
-                # S - PROJETO KIT
-                projeto_kit = str(row.iloc[18]) if pd.notna(row.iloc[18]) else ''
-                # T - PROJETO MEDIDOR
-                projeto_medidor = str(row.iloc[19]) if pd.notna(row.iloc[19]) else ''
-                # U - AR COELBA
-                ar_coelba = str(row.iloc[20]) if pd.notna(row.iloc[20]) else 'N/A'
-                # V - VISITA PRÉVIA
-                data_visita_previa = str(row.iloc[21]) if pd.notna(row.iloc[21]) else ''
-                # W - OBSERVAÇÃO DA VISITA
-                observacao_visita = str(row.iloc[22]) if pd.notna(row.iloc[22]) else ''
-                # X - ANÁLISE PRÉ FECH
-                analise_pre_fechamento = str(row.iloc[23]) if pd.notna(row.iloc[23]) else ''
-                # Y - SOLICITAÇÃO DE RESERVA
-                data_solicitacao_reserva = str(row.iloc[24]) if pd.notna(row.iloc[24]) else ''
+                # S - CLIENTES PREVISTOS
+                clientes_previstos = float(row.iloc[18]) if pd.notna(row.iloc[18]) else 0
+                # T - PROJETO KIT
+                projeto_kit = str(row.iloc[19]) if pd.notna(row.iloc[19]) else ''
+                # U - PROJETO MEDIDOR
+                projeto_medidor = str(row.iloc[20]) if pd.notna(row.iloc[20]) else ''
+                # V - AR COELBA
+                ar_coelba = str(row.iloc[21]) if pd.notna(row.iloc[21]) else 'N/A'
+                # W - VISITA PRÉVIA
+                data_visita_previa = str(row.iloc[22]) if pd.notna(row.iloc[22]) else ''
+                # X - OBSERVAÇÃO DA VISITA
+                observacao_visita = str(row.iloc[23]) if pd.notna(row.iloc[23]) else ''
+                # Y - ANÁLISE PRÉ FECH
+                analise_pre_fechamento = str(row.iloc[24]) if pd.notna(row.iloc[24]) else ''
+                # Z - SOLICITAÇÃO DE RESERVA
+                data_solicitacao_reserva = str(row.iloc[25]) if pd.notna(row.iloc[25]) else ''
                 
                 # Calcular progresso
                 progresso = 0
@@ -330,6 +332,7 @@ def processar_planilha(caminho_arquivo):
                     'dataInicio': data_inicio,
                     'prazo': prazo,
                     'obraSemana': obra_semana,
+                    'motivoAtraso': motivo_atraso,
                     'atividadeDia': atividade_dia,
                     'programacaoLv': programacao_lv,
                     'cavasRealizadas': int(cavas_realizadas),
@@ -803,8 +806,8 @@ def debug_coordenadas():
         return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':
-    print("🚀 Iniciando servidor Flask...")
-    print(f"📁 Diretório de uploads: {app.config['UPLOAD_FOLDER']}")
-    print("📤 Para carregar dados, faça upload de um arquivo Excel via interface web")
-    print("🌐 API rodando em: http://localhost:5000")
+    print("Iniciando servidor Flask...")
+    print(f"Diretorio de uploads: {app.config['UPLOAD_FOLDER']}")
+    print("Para carregar dados, faca upload de um arquivo Excel via interface web")
+    print("API rodando em: http://localhost:5000")
     app.run(debug=True, port=5000)

@@ -45,7 +45,7 @@ python app.py                       # Start Flask server on http://localhost:500
 5. File locking mechanism prevents concurrent write conflicts
 
 ### Excel File Structure
-The system processes Excel files with 25 columns (A-Y):
+The system processes Excel files with 26 columns (A-Z):
 - **A**: Encarregado (foreman)
 - **B**: Supervisor
 - **C**: Projeto (Project ID, e.g., B-0001)
@@ -56,9 +56,10 @@ The system processes Excel files with 25 columns (A-Y):
 - **H**: Postes Previstos
 - **I**: Data de Início
 - **J**: Data Conclusão (Prazo)
-- **K**: Obra da Semana
-- **L**: Atividade do Dia (dropdown: IMPLANTAÇÃO, LANÇAMENTO, etc.)
-- **M-Y**: Various tracking fields (cavas, coordinates, observations, etc.)
+- **K**: Obra da Semana (Status: ENERGIZADA, ATUANDO, PROGRAMADA, ATRASADA)
+- **L**: Motivo do Atraso (displayed in tooltip for delayed obras)
+- **M**: Atividade do Dia (dropdown: IMPLANTAÇÃO, LANÇAMENTO, etc.)
+- **N-Z**: Various tracking fields (cavas, coordinates, observations, etc.)
 
 ### Status Calculation Logic
 Obras status is determined in `processar_planilha()` (backend/app.py:227-259):

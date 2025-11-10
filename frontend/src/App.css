@@ -1006,6 +1006,92 @@ font-size: 48px;
   animation: badgeShine 3s ease-in-out infinite;
 }
 
+/* ========== TOOLTIP MOTIVO DO ATRASO ========== */
+.tooltip-atraso {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 10;
+}
+
+.tooltip-icon {
+  width: 36px;
+  height: 36px;
+  background: linear-gradient(135deg, #fee2e2 0%, #fca5a5 100%);
+  border: 2px solid #dc2626;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  cursor: help;
+  animation: pulseWarning 2s ease-in-out infinite;
+}
+
+@keyframes pulseWarning {
+  0%, 100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4);
+  }
+  50% {
+    transform: scale(1.05);
+    box-shadow: 0 0 0 8px rgba(239, 68, 68, 0);
+  }
+}
+
+.tooltip-text {
+  position: absolute;
+  top: 45px;
+  right: 0;
+  background: white;
+  border: 2px solid #dc2626;
+  border-radius: 10px;
+  padding: 12px 16px;
+  min-width: 250px;
+  max-width: 350px;
+  box-shadow: 0 4px 20px rgba(239, 68, 68, 0.3);
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(-10px);
+  transition: all 0.3s ease;
+  z-index: 1000;
+}
+
+.tooltip-atraso:hover .tooltip-text {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+}
+
+.tooltip-text::before {
+  content: '';
+  position: absolute;
+  top: -8px;
+  right: 10px;
+  width: 0;
+  height: 0;
+  border-left: 8px solid transparent;
+  border-right: 8px solid transparent;
+  border-bottom: 8px solid #dc2626;
+}
+
+.tooltip-text strong {
+  display: block;
+  color: #dc2626;
+  font-size: 13px;
+  font-weight: 700;
+  margin-bottom: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.tooltip-text p {
+  margin: 0;
+  color: #374151;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
 .obra-header {
   display: flex;
   justify-content: space-between;
@@ -2323,4 +2409,33 @@ font-size: 48px;
   .data-table td {
     padding: 10px 5px;
   }
+}
+
+/* ========== ESTILO BARRA DE ROLAGEM GANTT ========== */
+/* Estilização customizada da scrollbar */
+div[style*="overflowY: auto"] {
+  scrollbar-width: thin;
+  scrollbar-color: #667eea #f3f4f6;
+}
+
+div[style*="overflowY: auto"]::-webkit-scrollbar {
+  width: 12px;
+}
+
+div[style*="overflowY: auto"]::-webkit-scrollbar-track {
+  background: linear-gradient(to bottom, #f3f4f6 0%, #e5e7eb 100%);
+  border-radius: 10px;
+  margin: 4px;
+}
+
+div[style*="overflowY: auto"]::-webkit-scrollbar-thumb {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 10px;
+  border: 2px solid #f3f4f6;
+  transition: all 0.3s ease;
+}
+
+div[style*="overflowY: auto"]::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(135deg, #5a67d8 0%, #6b46c1 100%);
+  border-color: #e5e7eb;
 }

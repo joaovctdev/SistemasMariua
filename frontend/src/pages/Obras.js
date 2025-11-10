@@ -1,7 +1,593 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import html2canvas from 'html2canvas';
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  BarElement,
+  TimeScale,
+  Title,
+  Tooltip,
+  Legend
+} from 'chart.js';
+import { Bar } from 'react-chartjs-2';
+import 'chartjs-adapter-date-fns';
+import { ptBR } from 'date-fns/locale';
+
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  BarElement,
+  TimeScale,
+  Title,
+  Tooltip,
+  Legend
+);
 
 const API_URL = 'http://localhost:5000/api';
+
+// Componente Gráfico de Gantt
+function GanttChart({ obras }) {
+  const [mesFiltro, setMesFiltro] = React.useState('todos');
+  const [encarregadoFiltro, setEncarregadoFiltro] = React.useState('todos');
+
+  const parseDataToDate = (dataStr) => {
+    if (!dataStr || dataStr === 'nan') return null;
+
+    try {
+      // Verificar se é uma string no formato DD/MM/AAAA ou DD/MM/AA
+      if (typeof dataStr === 'string' && dataStr.includes('/')) {
+        const partes = dataStr.split('/');
+        if (partes.length === 3) {
+          let dia = parseInt(partes[0], 10);
+          let mes = parseInt(partes[1], 10) - 1; // Mês é 0-indexed
+          let ano = parseInt(partes[2], 10);
+
+          // Se o ano tem 2 dígitos, assumir 20XX
+          if (ano < 100) {
+            ano += 2000;
+          }
+
+          const data = new Date(ano, mes, dia);
+          if (!isNaN(data.getTime())) return data;
+        }
+      }
+
+      // Tentar parse direto como fallback
+      const data = new Date(dataStr);
+      if (!isNaN(data.getTime())) return data;
+
+      return null;
+    } catch {
+      return null;
+    }
+  };
+
+  // Preparar dados para o gráfico
+  const prepararDados = () => {
+    const dadosGantt = [];
+
+    obras.forEach(obra => {
+      const dataInicio = parseDataToDate(obra.dataInicio);
+      const dataFim = parseDataToDate(obra.prazo);
+
+      if (dataInicio && dataFim && dataInicio < dataFim) {
+        // Aplicar filtro de mês se necessário
+        if (mesFiltro !== 'todos') {
+          const mesSelecionado = parseInt(mesFiltro);
+          const mesInicio = dataInicio.getMonth();
+          const mesFim = dataFim.getMonth();
+          const anoInicio = dataInicio.getFullYear();
+          const anoFim = dataFim.getFullYear();
+
+          // Verificar se o mês selecionado está dentro do intervalo da obra
+          let obraContémMes = false;
+
+          if (anoInicio === anoFim) {
+            // Obra dentro do mesmo ano
+            obraContémMes = mesSelecionado >= mesInicio && mesSelecionado <= mesFim;
+          } else {
+            // Obra atravessa anos
+            if (anoInicio === 2025) {
+              obraContémMes = mesSelecionado >= mesInicio;
+            }
+            if (anoFim === 2025) {
+              obraContémMes = obraContémMes || mesSelecionado <= mesFim;
+            }
+          }
+
+          if (!obraContémMes) {
+            return; // Pular obra que não está ativa no mês filtrado
+          }
+        }
+
+        // Aplicar filtro de encarregado se necessário
+        if (encarregadoFiltro !== 'todos') {
+          if (obra.encarregado !== encarregadoFiltro) {
+            return; // Pular obra que não é do encarregado filtrado
+          }
+        }
+
+        dadosGantt.push({
+          label: `${obra.encarregado} - ${obra.projeto}`,
+          dataInicio,
+          dataFim,
+          status: obra.obraSemana,
+          progresso: obra.progresso,
+          encarregado: obra.encarregado,
+          projeto: obra.projeto
+        });
+      }
+    });
+
+    // Ordenar por encarregado e depois por data de início
+    dadosGantt.sort((a, b) => {
+      if (a.encarregado !== b.encarregado) {
+        return a.encarregado.localeCompare(b.encarregado);
+      }
+      return a.dataInicio - b.dataInicio;
+    });
+
+    return dadosGantt;
+  };
+
+  // Calcular limites do eixo X baseado no filtro
+  const getLimitesEixoX = () => {
+    if (mesFiltro === 'todos') {
+      return {
+        min: new Date(2025, 0, 1).getTime(),
+        max: new Date(2025, 11, 31).getTime()
+      };
+    } else {
+      const mes = parseInt(mesFiltro);
+      return {
+        min: new Date(2025, mes, 1).getTime(),
+        max: new Date(2025, mes + 1, 0).getTime() // Último dia do mês
+      };
+    }
+  };
+
+  const dadosGantt = prepararDados();
+  const limitesEixo = getLimitesEixoX();
+
+  const meses = [
+    { value: 'todos', label: 'Todos os Meses' },
+    { value: '0', label: 'Janeiro' },
+    { value: '1', label: 'Fevereiro' },
+    { value: '2', label: 'Março' },
+    { value: '3', label: 'Abril' },
+    { value: '4', label: 'Maio' },
+    { value: '5', label: 'Junho' },
+    { value: '6', label: 'Julho' },
+    { value: '7', label: 'Agosto' },
+    { value: '8', label: 'Setembro' },
+    { value: '9', label: 'Outubro' },
+    { value: '10', label: 'Novembro' },
+    { value: '11', label: 'Dezembro' }
+  ];
+
+  // Obter lista de encarregados baseado no filtro de mês
+  const getEncarregadosFiltrados = () => {
+    const encarregadosSet = new Set();
+
+    obras.forEach(obra => {
+      // Filtrar por encarregado válido (não vazio, não null, não 'N/A')
+      if (!obra.encarregado || obra.encarregado === 'N/A' || obra.encarregado.trim() === '') {
+        return;
+      }
+
+      const dataInicio = parseDataToDate(obra.dataInicio);
+      const dataFim = parseDataToDate(obra.prazo);
+
+      if (!dataInicio || !dataFim || dataInicio >= dataFim) {
+        return;
+      }
+
+      // Se há filtro de mês, verificar se a obra está ativa no mês
+      if (mesFiltro !== 'todos') {
+        const mesSelecionado = parseInt(mesFiltro);
+        const mesInicio = dataInicio.getMonth();
+        const mesFim = dataFim.getMonth();
+        const anoInicio = dataInicio.getFullYear();
+        const anoFim = dataFim.getFullYear();
+
+        let obraContémMes = false;
+
+        if (anoInicio === anoFim) {
+          obraContémMes = mesSelecionado >= mesInicio && mesSelecionado <= mesFim;
+        } else {
+          if (anoInicio === 2025) {
+            obraContémMes = mesSelecionado >= mesInicio;
+          }
+          if (anoFim === 2025) {
+            obraContémMes = obraContémMes || mesSelecionado <= mesFim;
+          }
+        }
+
+        if (!obraContémMes) {
+          return;
+        }
+      }
+
+      encarregadosSet.add(obra.encarregado);
+    });
+
+    return [...encarregadosSet].sort();
+  };
+
+  const encarregadosUnicos = getEncarregadosFiltrados();
+
+  // Se o encarregado selecionado não está mais na lista filtrada, resetar para 'todos'
+  React.useEffect(() => {
+    if (encarregadoFiltro !== 'todos' && !encarregadosUnicos.includes(encarregadoFiltro)) {
+      setEncarregadoFiltro('todos');
+    }
+  }, [mesFiltro, encarregadosUnicos, encarregadoFiltro]);
+
+  if (dadosGantt.length === 0) {
+    return (
+      <div>
+        {/* Filtro de Mês */}
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '15px',
+          marginBottom: '20px',
+          padding: '15px',
+          background: 'linear-gradient(135deg, #f3f4f6 0%, #e5e7eb 100%)',
+          borderRadius: '10px'
+        }}>
+          <label style={{
+            fontSize: '14px',
+            fontWeight: '600',
+            color: '#374151'
+          }}>
+            Filtrar por mês:
+          </label>
+          <select
+            value={mesFiltro}
+            onChange={(e) => setMesFiltro(e.target.value)}
+            style={{
+              padding: '8px 16px',
+              fontSize: '14px',
+              fontWeight: '500',
+              border: '2px solid #667eea',
+              borderRadius: '8px',
+              background: 'white',
+              color: '#374151',
+              cursor: 'pointer',
+              outline: 'none',
+              transition: 'all 0.2s ease'
+            }}
+          >
+            {meses.map(mes => (
+              <option key={mes.value} value={mes.value}>{mes.label}</option>
+            ))}
+          </select>
+        </div>
+
+        <div style={{ textAlign: 'center', padding: '40px', color: '#6b7280' }}>
+          <p>Nenhuma obra com datas válidas para exibir no cronograma{mesFiltro !== 'todos' ? ' neste mês' : ''}.</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Cores por status
+  const getCorPorStatus = (status) => {
+    const statusUpper = status?.toUpperCase() || '';
+    if (statusUpper.includes('ENERGIZADA')) return 'rgba(16, 185, 129, 0.8)';
+    if (statusUpper.includes('ATUANDO')) return 'rgba(245, 158, 11, 0.8)';
+    if (statusUpper.includes('PROGRAMADA')) return 'rgba(59, 130, 246, 0.8)';
+    if (statusUpper.includes('ATRASADA')) return 'rgba(239, 68, 68, 0.8)';
+    return 'rgba(107, 114, 128, 0.8)';
+  };
+
+  // Plugin customizado para desenhar texto nas barras
+  const pluginDesenharTexto = {
+    id: 'desenharTextoNasBarra',
+    afterDatasetsDraw(chart) {
+      const { ctx } = chart;
+
+      chart.data.datasets.forEach((dataset, datasetIndex) => {
+        const meta = chart.getDatasetMeta(datasetIndex);
+
+        meta.data.forEach((bar, index) => {
+          const projeto = dadosGantt[index].projeto;
+          const { x, y, width } = bar;
+
+          // Configurar texto
+          ctx.save();
+          ctx.font = 'bold 12px Arial';
+          ctx.fillStyle = '#ffffff';
+          ctx.textAlign = 'left';
+          ctx.textBaseline = 'middle';
+
+          // Adicionar sombra para melhor legibilidade
+          ctx.shadowColor = 'rgba(0, 0, 0, 0.5)';
+          ctx.shadowBlur = 4;
+          ctx.shadowOffsetX = 1;
+          ctx.shadowOffsetY = 1;
+
+          // Desenhar texto apenas se a barra for larga o suficiente
+          const textWidth = ctx.measureText(projeto).width;
+          if (width > textWidth + 20) {
+            ctx.fillText(projeto, x - width / 2 + 10, y);
+          }
+
+          ctx.restore();
+        });
+      });
+    }
+  };
+
+  // Preparar dados para Chart.js
+  const data = {
+    labels: dadosGantt.map(d => d.label),
+    datasets: [{
+      label: 'Cronograma',
+      data: dadosGantt.map((d, index) => ({
+        x: [d.dataInicio, d.dataFim],
+        y: index
+      })),
+      backgroundColor: dadosGantt.map(d => getCorPorStatus(d.status)),
+      borderColor: dadosGantt.map(d => getCorPorStatus(d.status).replace('0.8', '1')),
+      borderWidth: 2,
+      borderRadius: 6,
+      borderSkipped: false,
+      barPercentage: 0.8,
+      categoryPercentage: 0.9
+    }]
+  };
+
+  const options = {
+    indexAxis: 'y',
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: {
+        display: false
+      },
+      tooltip: {
+        backgroundColor: 'rgba(0, 0, 0, 0.9)',
+        padding: 15,
+        borderColor: 'rgba(255, 255, 255, 0.1)',
+        borderWidth: 1,
+        titleFont: {
+          size: 14,
+          weight: 'bold'
+        },
+        bodyFont: {
+          size: 13
+        },
+        callbacks: {
+          title: (context) => {
+            const index = context[0].dataIndex;
+            return dadosGantt[index].projeto;
+          },
+          label: (context) => {
+            const index = context.dataIndex;
+            const item = dadosGantt[index];
+            const inicio = item.dataInicio.toLocaleDateString('pt-BR');
+            const fim = item.dataFim.toLocaleDateString('pt-BR');
+            const dias = Math.ceil((item.dataFim - item.dataInicio) / (1000 * 60 * 60 * 24));
+
+            return [
+              `Encarregado: ${item.encarregado}`,
+              `Status: ${item.status || 'N/A'}`,
+              `Progresso: ${item.progresso}%`,
+              `Início: ${inicio}`,
+              `Término: ${fim}`,
+              `Duração: ${dias} dias`
+            ];
+          }
+        }
+      },
+      desenharTextoNasBarra: pluginDesenharTexto
+    },
+    scales: {
+      x: {
+        type: 'time',
+        min: limitesEixo.min,
+        max: limitesEixo.max,
+        time: {
+          unit: mesFiltro === 'todos' ? 'month' : 'day',
+          displayFormats: {
+            month: 'MMM yyyy',
+            day: 'dd/MM'
+          },
+          tooltipFormat: 'dd/MM/yyyy'
+        },
+        adapters: {
+          date: {
+            locale: ptBR
+          }
+        },
+        grid: {
+          color: 'rgba(0, 0, 0, 0.05)',
+          drawBorder: false
+        },
+        ticks: {
+          font: {
+            size: 11,
+            weight: '500'
+          },
+          color: '#374151',
+          maxRotation: 0,
+          autoSkip: false
+        },
+        title: {
+          display: true,
+          text: 'Período - 2025',
+          font: {
+            size: 14,
+            weight: 'bold'
+          },
+          color: '#1f2937'
+        }
+      },
+      y: {
+        grid: {
+          display: false,
+          drawBorder: false
+        },
+        ticks: {
+          font: {
+            size: 12,
+            weight: '500'
+          },
+          color: '#374151',
+          autoSkip: false
+        },
+        title: {
+          display: true,
+          text: 'Equipe - Obra',
+          font: {
+            size: 14,
+            weight: 'bold'
+          },
+          color: '#1f2937'
+        }
+      }
+    }
+  };
+
+  // Altura fixa para cada barra + espaçamento
+  const alturaTotal = dadosGantt.length * 60;
+
+  return (
+    <div>
+      {/* Filtros */}
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: '15px',
+        marginBottom: '20px',
+        padding: '15px 20px',
+        background: 'linear-gradient(135deg, #f3f4f6 0%, #e5e7eb 100%)',
+        borderRadius: '10px',
+        boxShadow: '0 2px 8px rgba(0, 0, 0, 0.05)',
+        flexWrap: 'wrap'
+      }}>
+        {/* Filtro de Mês */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <label style={{
+            fontSize: '14px',
+            fontWeight: '600',
+            color: '#374151',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px'
+          }}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+              <line x1="16" y1="2" x2="16" y2="6"/>
+              <line x1="8" y1="2" x2="8" y2="6"/>
+              <line x1="3" y1="10" x2="21" y2="10"/>
+            </svg>
+            Mês:
+          </label>
+          <select
+            value={mesFiltro}
+            onChange={(e) => setMesFiltro(e.target.value)}
+            style={{
+              padding: '10px 40px 10px 16px',
+              fontSize: '14px',
+              fontWeight: '600',
+              border: '2px solid #667eea',
+              borderRadius: '8px',
+              background: 'white',
+              color: '#667eea',
+              cursor: 'pointer',
+              outline: 'none',
+              transition: 'all 0.2s ease',
+              appearance: 'none',
+              backgroundImage: `url("data:image/svg+xml,%3Csvg width='12' height='8' viewBox='0 0 12 8' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1.5L6 6.5L11 1.5' stroke='%23667eea' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")`,
+              backgroundRepeat: 'no-repeat',
+              backgroundPosition: 'right 12px center'
+            }}
+            onMouseEnter={(e) => e.target.style.borderColor = '#5a67d8'}
+            onMouseLeave={(e) => e.target.style.borderColor = '#667eea'}
+          >
+            {meses.map(mes => (
+              <option key={mes.value} value={mes.value}>{mes.label}</option>
+            ))}
+          </select>
+        </div>
+
+        {/* Filtro de Encarregado */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <label style={{
+            fontSize: '14px',
+            fontWeight: '600',
+            color: '#374151',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px'
+          }}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+              <circle cx="12" cy="7" r="4" />
+            </svg>
+            Encarregado:
+          </label>
+          <select
+            value={encarregadoFiltro}
+            onChange={(e) => setEncarregadoFiltro(e.target.value)}
+            style={{
+              padding: '10px 40px 10px 16px',
+              fontSize: '14px',
+              fontWeight: '600',
+              border: '2px solid #10b981',
+              borderRadius: '8px',
+              background: 'white',
+              color: '#10b981',
+              cursor: 'pointer',
+              outline: 'none',
+              transition: 'all 0.2s ease',
+              appearance: 'none',
+              backgroundImage: `url("data:image/svg+xml,%3Csvg width='12' height='8' viewBox='0 0 12 8' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1.5L6 6.5L11 1.5' stroke='%2310b981' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")`,
+              backgroundRepeat: 'no-repeat',
+              backgroundPosition: 'right 12px center'
+            }}
+            onMouseEnter={(e) => e.target.style.borderColor = '#059669'}
+            onMouseLeave={(e) => e.target.style.borderColor = '#10b981'}
+          >
+            <option value="todos">Todos os Encarregados</option>
+            {encarregadosUnicos.map(enc => (
+              <option key={enc} value={enc}>{enc}</option>
+            ))}
+          </select>
+        </div>
+
+        <div style={{
+          marginLeft: 'auto',
+          fontSize: '13px',
+          color: '#6b7280',
+          fontWeight: '500'
+        }}>
+          {dadosGantt.length} {dadosGantt.length === 1 ? 'obra' : 'obras'}
+        </div>
+      </div>
+
+      {/* Container do Gráfico */}
+      <div style={{
+        height: '600px',
+        width: '100%',
+        overflowY: 'auto',
+        overflowX: 'hidden',
+        position: 'relative',
+        border: '1px solid #e5e7eb',
+        borderRadius: '8px',
+        background: 'white'
+      }}>
+        <div style={{ height: `${alturaTotal}px`, width: '100%', minHeight: '600px' }}>
+          <Bar data={data} options={options} />
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function Obras() {
   const [obras, setObras] = useState([]);
@@ -296,7 +882,19 @@ function Obras() {
             <div
               key={obra.id}
               className={`obra-card ${isEnergizada ? 'energizada' : ''} ${isAtrasada ? 'atrasada' : ''}`}
+              style={{ position: 'relative' }}
             >
+              {/* Tooltip para obras atrasadas */}
+              {isAtrasada && obra.motivoAtraso && obra.motivoAtraso !== 'nan' && (
+                <div className="tooltip-atraso">
+                  <div className="tooltip-icon">⚠️</div>
+                  <div className="tooltip-text">
+                    <strong>Motivo do Atraso:</strong>
+                    <p>{obra.motivoAtraso}</p>
+                  </div>
+                </div>
+              )}
+
               <div className="obra-header">
                 <h3>{obra.projeto}</h3>
                 <span
@@ -615,17 +1213,17 @@ function Obras() {
                       <td style={{
                         padding: '14px 12px',
                         fontSize: '14px',
-                        color: '#374151'
+                        color: '#000000ff'
                       }}>{item.encarregado}</td>
                       <td style={{
                         padding: '14px 12px',
                         fontSize: '14px',
-                        color: '#374151'
+                        color: '#000000ff'
                       }}>{item.titulo}</td>
                       <td style={{
                         padding: '14px 12px',
                         fontSize: '14px',
-                        color: '#374151',
+                        color: '#000000ff',
                         whiteSpace: 'nowrap'
                       }}>{item.municipio}</td>
                       <td style={{
@@ -659,6 +1257,93 @@ function Obras() {
           </div>
         )}
       </div>
+
+      {/* GRÁFICO DE GANTT */}
+      {obras.length > 0 && (
+        <div style={{ marginTop: '40px' }}>
+          <div style={{
+            borderRadius: '15px',
+            overflow: 'hidden',
+            boxShadow: '0 10px 30px rgba(0, 0, 0, 0.1)',
+            border: '1px solid #e5e7eb',
+            background: 'white'
+          }}>
+            {/* Header */}
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '25px',
+              padding: '25px 30px',
+              background: 'linear-gradient(135deg, #6f6f6fff 0%, #000000ff 100%)',
+              position: 'relative'
+            }}>
+              <div style={{ flex: 1 }}>
+                <h3 style={{
+                  margin: 0,
+                  color: 'white',
+                  fontSize: '28px',
+                  fontWeight: '700',
+                  textShadow: '2px 2px 4px rgba(0, 0, 0, 0.2)',
+                  letterSpacing: '0.5px'
+                }}>
+                  CRONOGRAMA DE OBRAS - GRÁFICO DE GANTT
+                </h3>
+                <p style={{
+                  margin: '8px 0 0 0',
+                  color: 'rgba(255, 255, 255, 0.95)',
+                  fontSize: '14px',
+                  fontWeight: '500'
+                }}>
+                  Visualização temporal das obras por equipe
+                </p>
+              </div>
+
+              {/* Legenda */}
+              <div style={{
+                display: 'flex',
+                gap: '15px',
+                flexWrap: 'wrap'
+              }}>
+                {[
+                  { label: 'Energizada', cor: '#10b981' },
+                  { label: 'Atuando', cor: '#f59e0b' },
+                  { label: 'Programada', cor: '#3b82f6' },
+                  { label: 'Atrasada', cor: '#ef4444' }
+                ].map(item => (
+                  <div key={item.label} style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    background: 'rgba(0, 0, 0, 0.15)',
+                    padding: '6px 12px',
+                    borderRadius: '20px',
+                    backdropFilter: 'blur(10px)'
+                  }}>
+                    <div style={{
+                      width: '12px',
+                      height: '12px',
+                      background: item.cor,
+                      borderRadius: '3px',
+                      boxShadow: '0 2px 4px rgba(0, 0, 0, 0.2)'
+                    }} />
+                    <span style={{
+                      color: 'white',
+                      fontSize: '12px',
+                      fontWeight: '600'
+                    }}>{item.label}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Gráfico */}
+            <div style={{ padding: '30px' }}>
+              <GanttChart obras={obras} />
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* MODAL DE DETALHES DA OBRA */}
       {showModal && selectedObra && (
