@@ -805,6 +805,251 @@ def debug_coordenadas():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+@app.route('/api/dashboard/bd-programacao', methods=['GET'])
+def get_bd_programacao():
+    """Retorna dados do banco de dados de programação para dashboards"""
+    try:
+        caminho_bd = os.path.join(app.config['UPLOAD_FOLDER'], 'BD', 'BDProgramacao.xlsx')
+
+        if not os.path.exists(caminho_bd):
+            return jsonify({'error': 'Arquivo BDProgramacao.xlsx não encontrado'}), 404
+
+        # Ler a planilha
+        df = pd.read_excel(caminho_bd, engine='openpyxl')
+
+        # Processar os dados
+        dados = []
+        for index, row in df.iterrows():
+            try:
+                # Colunas conforme especificado
+                registro = {
+                    'data': str(row.iloc[0]) if pd.notna(row.iloc[0]) else '',
+                    'supervisor': str(row.iloc[1]) if pd.notna(row.iloc[1]) else '',
+                    'encarregado': str(row.iloc[2]) if pd.notna(row.iloc[2]) else '',
+                    'projeto': str(row.iloc[3]) if pd.notna(row.iloc[3]) else '',
+                    'titulo': str(row.iloc[4]) if pd.notna(row.iloc[4]) else '',
+                    'municipio': str(row.iloc[5]) if pd.notna(row.iloc[5]) else '',
+                    'atividadeProgramada': str(row.iloc[6]) if pd.notna(row.iloc[6]) else '',
+                    'locacao': str(row.iloc[7]) if pd.notna(row.iloc[7]) else '',
+                    'cavaPrevista': float(row.iloc[8]) if pd.notna(row.iloc[8]) and str(row.iloc[8]).replace('.','').replace('-','').isdigit() else 0,
+                    'cavaReal': float(row.iloc[9]) if pd.notna(row.iloc[9]) and str(row.iloc[9]).replace('.','').replace('-','').isdigit() else 0,
+                    'cavaEmRocha': float(row.iloc[10]) if pd.notna(row.iloc[10]) and str(row.iloc[10]).replace('.','').replace('-','').isdigit() else 0,
+                    'postePrevisto': float(row.iloc[11]) if pd.notna(row.iloc[11]) and str(row.iloc[11]).replace('.','').replace('-','').isdigit() else 0,
+                    'posteReal': float(row.iloc[12]) if pd.notna(row.iloc[12]) and str(row.iloc[12]).replace('.','').replace('-','').isdigit() else 0,
+                    'evento': str(row.iloc[13]) if pd.notna(row.iloc[13]) else '',
+                    'responsavel': str(row.iloc[14]) if pd.notna(row.iloc[14]) else '',
+                    'justificativa': str(row.iloc[15]) if pd.notna(row.iloc[15]) else ''
+                }
+                dados.append(registro)
+            except Exception as e:
+                print(f"Erro ao processar linha {index}: {str(e)}")
+                continue
+
+        return jsonify({
+            'success': True,
+            'dados': dados,
+            'total': len(dados)
+        })
+
+    except Exception as e:
+        print(f"Erro ao carregar BD Programação: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/dashboard/obras-programacao', methods=['GET'])
+def get_obras_programacao():
+    """Retorna dados da planilha PROGRAMAÇÃO (postes previstos por obra)"""
+    try:
+        caminho_programacao = os.path.join(app.config['UPLOAD_FOLDER'], 'PROGRAMACAO - NOVEMBRO.xlsx')
+
+        if not os.path.exists(caminho_programacao):
+            return jsonify({'error': 'Arquivo PROGRAMACAO não encontrado'}), 404
+
+        df = pd.read_excel(caminho_programacao, engine='openpyxl')
+
+        obras = []
+        for index, row in df.iterrows():
+            if index == 0:  # Pular cabeçalho
+                continue
+
+            try:
+                obra = {
+                    'encarregado': str(row.iloc[0]) if pd.notna(row.iloc[0]) else '',
+                    'supervisor': str(row.iloc[1]) if pd.notna(row.iloc[1]) else '',
+                    'projeto': str(row.iloc[2]) if pd.notna(row.iloc[2]) else '',
+                    'titulo': str(row.iloc[3]) if pd.notna(row.iloc[3]) else '',
+                    'municipio': str(row.iloc[4]) if pd.notna(row.iloc[4]) else '',
+                    'postesPrevisto': float(row.iloc[7]) if pd.notna(row.iloc[7]) and str(row.iloc[7]).replace('.','').replace('-','').isdigit() else 0,
+                }
+                obras.append(obra)
+            except Exception as e:
+                print(f"Erro ao processar obra linha {index}: {str(e)}")
+                continue
+
+        return jsonify({
+            'success': True,
+            'obras': obras,
+            'total': len(obras)
+        })
+
+    except Exception as e:
+        print(f"Erro ao carregar obras programação: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/producao-dia', methods=['GET'])
+def get_producao_dia():
+    """Retorna dados da produção do dia com previsão e realizado"""
+    try:
+        # Obter data do parâmetro ou usar data atual
+        from datetime import datetime
+        from flask import request
+        data_param = request.args.get('data', None)
+
+        if data_param:
+            data_hoje = data_param  # Formato esperado: DD-MM-YYYY
+        else:
+            data_hoje = datetime.now().strftime('%d-%m-%Y')
+
+        # Caminho para a planilha de programação do dia
+        caminho_programacao_dia = os.path.join(app.config['UPLOAD_FOLDER'], 'ProgramacaoNovembro', f'{data_hoje}.xlsx')
+
+        if not os.path.exists(caminho_programacao_dia):
+            return jsonify({'error': f'Arquivo de programação para {data_hoje} não encontrado'}), 404
+
+        # Ler programação do dia (colunas B, C, D, E, G)
+        df_programacao = pd.read_excel(caminho_programacao_dia, engine='openpyxl')
+
+        # Ler banco de dados com os dados realizados
+        caminho_bd = os.path.join(app.config['UPLOAD_FOLDER'], 'BD', 'BDProgramacao.xlsx')
+
+        if not os.path.exists(caminho_bd):
+            return jsonify({'error': 'Arquivo BDProgramacao.xlsx não encontrado'}), 404
+
+        df_bd = pd.read_excel(caminho_bd, engine='openpyxl')
+
+        # Processar dados
+        producoes = []
+
+        for index, row_prog in df_programacao.iterrows():
+            try:
+                # Dados da programação (previsto)
+                projeto = str(row_prog.iloc[1]) if pd.notna(row_prog.iloc[1]) else ''  # Coluna B (índice 1)
+                supervisor = str(row_prog.iloc[2]) if pd.notna(row_prog.iloc[2]) else ''  # Coluna C (índice 2)
+                encarregado = str(row_prog.iloc[3]) if pd.notna(row_prog.iloc[3]) else ''  # Coluna D (índice 3)
+                titulo = str(row_prog.iloc[4]) if pd.notna(row_prog.iloc[4]) else ''  # Coluna E (índice 4)
+                atividade_programada = str(row_prog.iloc[6]) if pd.notna(row_prog.iloc[6]) else ''  # Coluna G (índice 6)
+
+                if not projeto:  # Pular linhas vazias
+                    continue
+
+                # Buscar dados realizados no BD correspondentes ao projeto
+                dados_realizados = df_bd[df_bd.iloc[:, 3] == projeto]  # Coluna 3 (D) do BD tem o projeto
+
+                # Inicializar valores realizados
+                locacao = ''
+                cava_real = 0
+                cava_em_rocha = 0
+                poste_real = 0
+                evento = ''
+                responsavel = ''
+                justificativa = ''
+                progresso = 0
+
+                if not dados_realizados.empty:
+                    # Pegar a linha mais recente (última)
+                    row_bd = dados_realizados.iloc[-1]
+
+                    locacao = str(row_bd.iloc[7]) if pd.notna(row_bd.iloc[7]) else ''
+                    cava_real = float(row_bd.iloc[9]) if pd.notna(row_bd.iloc[9]) else 0
+                    cava_em_rocha = float(row_bd.iloc[10]) if pd.notna(row_bd.iloc[10]) else 0
+                    poste_real = float(row_bd.iloc[12]) if pd.notna(row_bd.iloc[12]) else 0
+                    evento = str(row_bd.iloc[13]) if pd.notna(row_bd.iloc[13]) else ''
+                    responsavel = str(row_bd.iloc[14]) if pd.notna(row_bd.iloc[14]) else ''
+                    justificativa = str(row_bd.iloc[15]) if pd.notna(row_bd.iloc[15]) else ''
+
+                    # Calcular progresso com base na atividade programada
+                    atividade_upper = atividade_programada.upper()
+
+                    # 1. LOCAÇÃO: se locação > 0, progresso = 100%
+                    if 'LOCAÇÃO' in atividade_upper or 'LOCACAO' in atividade_upper:
+                        try:
+                            # Tentar converter locação para float
+                            valor_locacao = float(locacao) if locacao and locacao != '' and locacao != 'nan' else 0
+                            if valor_locacao > 0:
+                                progresso = 100
+                            else:
+                                progresso = 0
+                        except:
+                            progresso = 0
+
+                    # 2. LANÇAMENTO: se na justificativa tiver "Lançamento" ou "Lançou", progresso = 100%
+                    elif 'LANÇAMENTO' in atividade_upper or 'LANCAMENTO' in atividade_upper:
+                        justificativa_upper = justificativa.upper()
+                        if 'LANÇAMENTO' in justificativa_upper or 'LANCAMENTO' in justificativa_upper or 'LANÇOU' in justificativa_upper or 'LANCOU' in justificativa_upper:
+                            progresso = 100
+                        else:
+                            # Se tiver postes realizados, calcular progresso
+                            if poste_real > 0:
+                                progresso = min(100, int((poste_real / 10) * 100))
+                            else:
+                                progresso = 0
+
+                    # 3. ENERGIZAÇÃO: se evento for "ENERGIZADA" ou "EXECUTADO", progresso = 100%
+                    elif 'ENERGIZAÇÃO' in atividade_upper or 'ENERGIZACAO' in atividade_upper:
+                        evento_upper = evento.upper()
+                        if 'ENERGIZADA' in evento_upper or 'EXECUTADO' in evento_upper:
+                            progresso = 100
+                        else:
+                            progresso = 0
+
+                    # 4. IMPLANTAÇÃO: baseado em postes e cavas realizados
+                    elif 'IMPLANTAÇÃO' in atividade_upper or 'IMPLANTACAO' in atividade_upper:
+                        total_realizado = cava_real + cava_em_rocha + poste_real
+                        if total_realizado > 0:
+                            progresso = min(100, int((total_realizado / 15) * 100))  # Assumindo meta de 15
+                        else:
+                            progresso = 0
+
+                    # 5. Outras atividades: baseado nos valores realizados
+                    else:
+                        total_realizado = cava_real + cava_em_rocha + poste_real
+                        if total_realizado > 0:
+                            progresso = min(100, int((total_realizado / 10) * 100))
+                        else:
+                            progresso = 0
+
+                producao = {
+                    'projeto': projeto,
+                    'supervisor': supervisor,
+                    'encarregado': encarregado,
+                    'titulo': titulo,
+                    'atividadeProgramada': atividade_programada,
+                    'locacao': locacao,
+                    'cavaReal': cava_real,
+                    'cavaEmRocha': cava_em_rocha,
+                    'posteReal': poste_real,
+                    'evento': evento,
+                    'responsavel': responsavel,
+                    'justificativa': justificativa,
+                    'progresso': progresso
+                }
+
+                producoes.append(producao)
+
+            except Exception as e:
+                print(f"Erro ao processar linha {index}: {str(e)}")
+                continue
+
+        return jsonify({
+            'success': True,
+            'data': data_hoje,
+            'producoes': producoes,
+            'total': len(producoes)
+        })
+
+    except Exception as e:
+        print(f"Erro ao carregar produção do dia: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
 if __name__ == '__main__':
     print("Iniciando servidor Flask...")
     print(f"Diretorio de uploads: {app.config['UPLOAD_FOLDER']}")

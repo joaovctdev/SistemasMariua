@@ -1,19 +1,24 @@
 // src/App.js
 import React, { useState, useEffect, useRef } from 'react';
+import { BrowserRouter as Router, Routes, Route, Link, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import './App.css';
 import { ObrasIcon, SegurancaIcon, FrotaIcon, DashboardsIcon } from './components/SVGIcon';
 import Obras from './pages/Obras';
+import Dashboards from './pages/Dashboards';
 
 const API_URL = 'http://localhost:5000/api';
 
-function App() {
+function AppContent() {
+  const navigate = useNavigate();
+  const location = useLocation();
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [currentUser, setCurrentUser] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [currentPage, setCurrentPage] = useState('home');
+
+  const currentPage = location.pathname.substring(1) || 'home';
 
   useEffect(() => {
     const savedToken = localStorage.getItem('token');
@@ -79,7 +84,7 @@ function App() {
     setIsLoggedIn(false);
     setUsername('');
     setCurrentUser('');
-    setCurrentPage('home');
+    navigate('/home');
   };
 
   if (!isLoggedIn) {
@@ -185,7 +190,7 @@ function App() {
         </div>
 
         <div className="cards-grid">
-          <button className="card card-blue" onClick={() => setCurrentPage('obras')}>
+          <button className="card card-blue" onClick={() => navigate('/obras')}>
             <div className="card-icon">
               <ObrasIcon size={80} color="#ffffff" />
             </div>
@@ -193,7 +198,7 @@ function App() {
             <p>Gerencie e acompanhe todas as obras em andamento</p>
           </button>
 
-          <button className="card card-purple" onClick={() => setCurrentPage('seguranca')}>
+          <button className="card card-purple" onClick={() => navigate('/seguranca')}>
             <div className="card-icon">
               <SegurancaIcon size={80} color="#ffffff" />
             </div>
@@ -201,7 +206,7 @@ function App() {
             <p>Controle de acesso e relatórios de segurança</p>
           </button>
 
-          <button className="card card-pink" onClick={() => setCurrentPage('frota')}>
+          <button className="card card-pink" onClick={() => navigate('/frota')}>
             <div className="card-icon">
               <FrotaIcon size={80} color="#ffffff" />
             </div>
@@ -209,7 +214,7 @@ function App() {
             <p>Gestão completa da frota de veículos</p>
           </button>
 
-          <button className="card card-green" onClick={() => setCurrentPage('dashboards')}>
+          <button className="card card-green" onClick={() => navigate('/dashboards')}>
             <div className="card-icon">
               <DashboardsIcon size={80} color="#ffffff" />
             </div>
@@ -287,44 +292,6 @@ function App() {
     </div>
   );
 
-  const DashboardsPage = () => (
-    <div>
-      <div className="page-header">
-        <h1>📊 Dashboards</h1>
-        <p>Visão geral de todas as operações</p>
-      </div>
-      <div className="metrics-grid">
-        <div className="metric-card metric-blue">
-          <div className="metric-icon">📋</div>
-          <div className="metric-info">
-            <h2>12</h2>
-            <p>Obras Ativas</p>
-            <span className="metric-trend positive">↑ 15% vs mês anterior</span>
-          </div>
-        </div>
-        <div className="metric-card metric-green">
-          <div className="metric-icon">👷</div>
-          <div className="metric-info">
-            <h2>145</h2>
-            <p>Colaboradores</p>
-            <span className="metric-trend positive">↑ 8% vs mês anterior</span>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-
-  const renderPage = () => {
-    switch (currentPage) {
-      case 'home': return <HomePage />;
-      case 'obras': return <Obras />;
-      case 'seguranca': return <SegurancaPage />;
-      case 'frota': return <FrotaPage />;
-      case 'dashboards': return <DashboardsPage />;
-      default: return <HomePage />;
-    }
-  };
-
   return (
     <div className="app">
       <nav className="navbar">
@@ -339,11 +306,11 @@ function App() {
           </div>
 
           <div className="nav-menu">
-            <button className={currentPage === 'home' ? 'nav-link active' : 'nav-link'} onClick={() => setCurrentPage('home')}>Home</button>
-            <button className={currentPage === 'obras' ? 'nav-link active' : 'nav-link'} onClick={() => setCurrentPage('obras')}>Obras</button>
-            <button className={currentPage === 'seguranca' ? 'nav-link active' : 'nav-link'} onClick={() => setCurrentPage('seguranca')}>Segurança</button>
-            <button className={currentPage === 'frota' ? 'nav-link active' : 'nav-link'} onClick={() => setCurrentPage('frota')}>Frota</button>
-            <button className={currentPage === 'dashboards' ? 'nav-link active' : 'nav-link'} onClick={() => setCurrentPage('dashboards')}>Dashboards</button>
+            <button className={currentPage === 'home' ? 'nav-link active' : 'nav-link'} onClick={() => navigate('/home')}>Home</button>
+            <button className={currentPage === 'obras' ? 'nav-link active' : 'nav-link'} onClick={() => navigate('/obras')}>Obras</button>
+            <button className={currentPage === 'seguranca' ? 'nav-link active' : 'nav-link'} onClick={() => navigate('/seguranca')}>Segurança</button>
+            <button className={currentPage === 'frota' ? 'nav-link active' : 'nav-link'} onClick={() => navigate('/frota')}>Frota</button>
+            <button className={currentPage === 'dashboards' ? 'nav-link active' : 'nav-link'} onClick={() => navigate('/dashboards')}>Dashboards</button>
           </div>
           
           <div className="nav-actions">
@@ -367,9 +334,24 @@ function App() {
       </nav>
 
       <main className="main-content">
-        {renderPage()}
+        <Routes>
+          <Route path="/" element={<Navigate to="/home" replace />} />
+          <Route path="/home" element={<HomePage />} />
+          <Route path="/obras" element={<Obras />} />
+          <Route path="/dashboards" element={<Dashboards />} />
+          <Route path="/seguranca" element={<SegurancaPage />} />
+          <Route path="/frota" element={<FrotaPage />} />
+        </Routes>
       </main>
     </div>
+  );
+}
+
+function App() {
+  return (
+    <Router>
+      <AppContent />
+    </Router>
   );
 }
 

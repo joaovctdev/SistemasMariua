@@ -924,23 +924,23 @@ function Obras() {
         <>
           <div className="obras-summary">
             <div className="summary-card">
-              <div className="summary-number">{obras.length}</div>
+              <div className="summary-number">{obrasFiltradas.length}</div>
               <div className="summary-label">Total de Obras</div>
             </div>
             <div className="summary-card">
-              <div className="summary-number">{obras.filter(o => o.obraSemana?.toUpperCase().includes('ATUANDO')).length}</div>
+              <div className="summary-number">{obrasFiltradas.filter(o => o.obraSemana?.toUpperCase().includes('ATUANDO')).length}</div>
               <div className="summary-label">Atuando</div>
             </div>
             <div className="summary-card">
-              <div className="summary-number">{obras.filter(o => o.obraSemana?.toUpperCase().includes('ENERGIZADA')).length}</div>
+              <div className="summary-number">{obrasFiltradas.filter(o => o.obraSemana?.toUpperCase().includes('ENERGIZADA')).length}</div>
               <div className="summary-label">Energizadas</div>
             </div>
             <div className="summary-card">
-              <div className="summary-number">{obras.filter(o => o.obraSemana?.toUpperCase().includes('ATRASADA')).length}</div>
+              <div className="summary-number">{obrasFiltradas.filter(o => o.obraSemana?.toUpperCase().includes('ATRASADA')).length}</div>
               <div className="summary-label">Atrasadas</div>
             </div>
             <div className="summary-card">
-              <div className="summary-number">{obras.filter(o => o.obraSemana?.toUpperCase().includes('PROGRAMADA')).length}</div>
+              <div className="summary-number">{obrasFiltradas.filter(o => o.obraSemana?.toUpperCase().includes('PROGRAMADA')).length}</div>
               <div className="summary-label">Programadas</div>
             </div>
           </div>
@@ -1071,7 +1071,7 @@ function Obras() {
                   cursor: 'pointer'
                 }}
               >
-                <option value="todos">📅 Todos os Meses</option>
+                <option value="todos">Todos os Meses</option>
                 <option value="0">Janeiro</option>
                 <option value="1">Fevereiro</option>
                 <option value="2">Março</option>
@@ -1118,7 +1118,7 @@ function Obras() {
                   cursor: 'pointer'
                 }}
               >
-                <option value="todos">👔 Todos os Supervisores</option>
+                <option value="todos">Todos os Supervisores</option>
                 {getSupervisoresUnicos().map(sup => (
                   <option key={sup} value={sup}>{sup}</option>
                 ))}
@@ -1154,7 +1154,7 @@ function Obras() {
                   cursor: 'pointer'
                 }}
               >
-                <option value="todos">👷 Todos os Encarregados</option>
+                <option value="todos">Todos os Encarregados</option>
                 {getEncarregadosUnicos().map(enc => (
                   <option key={enc} value={enc}>{enc}</option>
                 ))}
@@ -1191,7 +1191,7 @@ function Obras() {
                   cursor: 'pointer'
                 }}
               >
-                <option value="todos">🎯 Todos os Status</option>
+                <option value="todos">Todos os Status</option>
                 <option value="energizada">✅ Energizada</option>
                 <option value="atuando">🔄 Atuando</option>
                 <option value="programada">📋 Programada</option>
@@ -1306,8 +1306,23 @@ function Obras() {
               className={`obra-card ${isEnergizada ? 'energizada' : ''} ${isAtrasada ? 'atrasada' : ''}`}
               style={{ position: 'relative' }}
             >
-              {/* Tooltip para obras atrasadas */}
-              {isAtrasada && obra.motivoAtraso && obra.motivoAtraso !== 'nan' && (
+              {/* Tooltip para programação LV (canto superior esquerdo) - NÃO aparece se energizada ou REALIZADO */}
+              {obra.programacaoLv &&
+               obra.programacaoLv !== 'nan' &&
+               obra.programacaoLv.trim() !== '' &&
+               !isEnergizada &&
+               obra.programacaoLv.toUpperCase() !== 'REALIZADO' && (
+                <div className="tooltip-programacao-lv">
+                  <div className="tooltip-icon-lv">❗</div>
+                  <div className="tooltip-text-lv">
+                    <strong>Programação LV:</strong>
+                    <p>{obra.programacaoLv}</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Tooltip para obras com motivo de atraso preenchido (canto superior direito) */}
+              {obra.motivoAtraso && obra.motivoAtraso !== 'nan' && obra.motivoAtraso.trim() !== '' && (
                 <div className="tooltip-atraso">
                   <div className="tooltip-icon">⚠️</div>
                   <div className="tooltip-text">
