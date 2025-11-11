@@ -114,8 +114,8 @@ function Dashboards() {
       datasets: [{
         label: 'Postes Implantados',
         data: sorted.map(([, total]) => total),
-        backgroundColor: 'rgba(59, 130, 246, 0.8)',
-        borderColor: 'rgba(59, 130, 246, 1)',
+        backgroundColor: '#f57a3dff',
+        borderColor: '#f57a3db4',
         borderWidth: 2
       }]
     };
@@ -144,7 +144,7 @@ function Dashboards() {
       datasets: [{
         label: 'Cavas Realizadas',
         data: sorted.map(([, total]) => total),
-        backgroundColor: 'rgba(16, 185, 129, 0.8)',
+        backgroundColor: '#0B9E9F',
         borderColor: 'rgba(16, 185, 129, 1)',
         borderWidth: 2
       }]
@@ -175,16 +175,16 @@ function Dashboards() {
         {
           label: 'Postes Implantados',
           data: agrupadoPostes,
-          backgroundColor: 'rgba(59, 130, 246, 0.8)',
-          borderColor: 'rgba(59, 130, 246, 1)',
+          backgroundColor: '#0B9E9F',
+          borderColor: '#0B9E9F',
           borderWidth: 3,
           tension: 0.4
         },
         {
           label: 'Cavas Realizadas',
           data: agrupadoCavas,
-          backgroundColor: 'rgba(16, 185, 129, 0.8)',
-          borderColor: 'rgba(16, 185, 129, 1)',
+          backgroundColor: '#F5793D',
+          borderColor: '#F5793D',
           borderWidth: 3,
           tension: 0.4
         }
@@ -207,11 +207,11 @@ function Dashboards() {
     const sorted = Object.entries(agrupado).sort((a, b) => b[1] - a[1]);
 
     const cores = [
-      'rgba(139, 92, 246, 0.8)',
-      'rgba(245, 158, 11, 0.8)',
-      'rgba(236, 72, 153, 0.8)',
-      'rgba(20, 184, 166, 0.8)',
-      'rgba(239, 68, 68, 0.8)'
+      '#F5793D',
+      '#f59e0bcc',
+      '#d64700ff',
+      '#050505cc',
+      '#ef4444cc'
     ];
 
     return {
