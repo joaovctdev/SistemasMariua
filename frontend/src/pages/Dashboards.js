@@ -114,8 +114,8 @@ function Dashboards() {
       datasets: [{
         label: 'Postes Implantados',
         data: sorted.map(([, total]) => total),
-        backgroundColor: '#f57a3dff',
-        borderColor: '#f57a3db4',
+        backgroundColor: '#015657',
+       
         borderWidth: 2
       }]
     };
@@ -207,11 +207,11 @@ function Dashboards() {
     const sorted = Object.entries(agrupado).sort((a, b) => b[1] - a[1]);
 
     const cores = [
-      '#F5793D',
-      '#f59e0bcc',
-      '#d64700ff',
-      '#050505cc',
-      '#ef4444cc'
+      '#0B9E9F',
+      '#077A7B',
+      '#7DC8C8',
+      '#B7E7E7',
+      '#015657'
     ];
 
     return {
@@ -316,8 +316,8 @@ function Dashboards() {
         type: 'bar',
         label: 'Postes Realizados',
         data: postesRealizados,
-        backgroundColor: 'rgba(59, 130, 246, 0.8)',
-        borderColor: 'rgba(59, 130, 246, 1)',
+        backgroundColor: '#077A7B',
+        borderColor: 'rgba(245, 245, 245, 1)',
         borderWidth: 2,
         datalabels: {
           display: true
@@ -372,12 +372,12 @@ function Dashboards() {
       datasets: [{
         data: [totalPrevisto, totalReal],
         backgroundColor: [
-          'rgba(239, 68, 68, 0.8)',
-          'rgba(16, 185, 129, 0.8)'
+          'rgba(253, 188, 9, 0.8)',
+          '#0D9091'
         ],
         borderColor: [
-          'rgba(239, 68, 68, 1)',
-          'rgba(16, 185, 129, 1)'
+          'rgba(255, 255, 255, 1)',
+          '#0D9091'
         ],
         borderWidth: 2
       }]
@@ -401,18 +401,18 @@ function Dashboards() {
       datasets: [{
         data: agrupado,
         backgroundColor: [
-          'rgba(59, 130, 246, 0.8)',
-          'rgba(16, 185, 129, 0.8)',
-          'rgba(245, 158, 11, 0.8)',
-          'rgba(139, 92, 246, 0.8)',
-          'rgba(236, 72, 153, 0.8)',
-          'rgba(239, 68, 68, 0.8)',
-          'rgba(34, 197, 94, 0.8)',
-          'rgba(168, 85, 247, 0.8)',
-          'rgba(251, 146, 60, 0.8)',
-          'rgba(45, 212, 191, 0.8)',
-          'rgba(244, 63, 94, 0.8)',
-          'rgba(99, 102, 241, 0.8)'
+          '#0B9E9F',
+          '#00CCCC',
+          '#077A7B',
+          '#45B9BA',
+          '#7DC8C8',
+          '#a2f1f1ff',
+          '#08898A',
+          '#1CBFC0',
+          '#9CE1E1',
+          '#015657',
+          '#B7E7E7',
+          '#0D9091'
         ],
         borderWidth: 2
       }]

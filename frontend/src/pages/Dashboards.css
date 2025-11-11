@@ -152,22 +152,22 @@
 }
 
 .stat-card.blue {
-  background: linear-gradient(135deg, #767eee 0%, #00066f  100%);
+  background: linear-gradient(135deg, #F5793D 0%, #f7661e  100%);
   color: white;
 }
 
 .stat-card.green {
-  background: linear-gradient(135deg, #767eee 0%, #00066f  100%);
+  background: linear-gradient(135deg, #F5793D 0%, #f7661e  100%);
   color: white;
 }
 
 .stat-card.orange {
-  background: linear-gradient(135deg, #767eee 0%, #00066f 100%);
+  background: linear-gradient(135deg, #F5793D 0%, #f7661e  100%);
   color: white;
 }
 
 .stat-card.purple {
-  background: linear-gradient(135deg, #767eee 0%, #00066f 100%);
+  background: linear-gradient(135deg, #F5793D 0%, #f7661e  100%);
   color: white;
 }
 
