@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import './ProducaoDia.css';
 
 const API_URL = 'http://localhost:5000/api';
@@ -8,7 +8,8 @@ function ProducaoDia() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [dataAtual, setDataAtual] = useState('');
-  const [dataSelecionada, setDataSelecionada] = useState('08-11-2025'); // Default para 08-11-2025
+  const [dataSelecionada, setDataSelecionada] = useState('10-11-2025');
+  const tableRef = useRef(null);
 
   useEffect(() => {
     fetchProducaoDia(dataSelecionada);
@@ -43,14 +44,13 @@ function ProducaoDia() {
   };
 
   const getProgressColor = (progresso) => {
-    if (progresso >= 80) return '#10b981'; // Verde
-    if (progresso >= 50) return '#f59e0b'; // Amarelo
-    if (progresso >= 20) return '#ef4444'; // Vermelho
-    return '#6b7280'; // Cinza
+    if (progresso >= 80) return '#10b981';
+    if (progresso >= 50) return '#f59e0b';
+    if (progresso >= 20) return '#ef4444';
+    return '#6b7280';
   };
 
   const getProgressStatus = (producao) => {
-    // Usar status do backend se disponível, senão calcular baseado no progresso
     if (producao.status) {
       return producao.status;
     }
@@ -58,7 +58,34 @@ function ProducaoDia() {
     if (progresso >= 80) return 'Concluído';
     if (progresso >= 50) return 'Em Andamento';
     if (progresso > 0) return 'Iniciado';
-    return 'Não Iniciado';
+    return 'Não Concluído';
+  };
+
+  const downloadTableAsImage = async () => {
+    try {
+      const html2canvasModule = await import('https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/+esm');
+      const html2canvas = html2canvasModule.default;
+      
+      const tableContainer = tableRef.current;
+      if (!tableContainer) return;
+
+      const canvas = await html2canvas(tableContainer, {
+        scale: 2,
+        backgroundColor: '#ffffff',
+        logging: false,
+        windowWidth: tableContainer.scrollWidth,
+        windowHeight: tableContainer.scrollHeight
+      });
+
+      const image = canvas.toDataURL('image/png');
+      const link = document.createElement('a');
+      link.download = `producao-dia-${dataSelecionada}.png`;
+      link.href = image;
+      link.click();
+    } catch (err) {
+      console.error('Erro ao baixar imagem:', err);
+      alert('Erro ao gerar imagem da tabela');
+    }
   };
 
   if (loading) {
@@ -87,12 +114,11 @@ function ProducaoDia() {
 
   return (
     <div className="producao-dia-container">
-      {/* Cabeçalho */}
       <div className="producao-header">
         <div className="header-content">
           <div>
             <h1>Produção do Dia</h1>
-            <p>Acompanhamento da produção em tempo real - {dataAtual}</p>
+            <p>Acompanhamento da produção por dia - {dataAtual}</p>
           </div>
           <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
             <div className="date-selector">
@@ -107,10 +133,18 @@ function ProducaoDia() {
                 onChange={(e) => setDataSelecionada(e.target.value)}
                 className="date-select"
               >
-                <option value="08-11-2025">08/11/2025</option>
-                <option value="11-11-2025">11/11/2025</option>
+            
+                <option value="10-11-2025">10/11/2025</option>
               </select>
             </div>
+            <button onClick={downloadTableAsImage} className="download-button">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                <polyline points="7 10 12 15 17 10"/>
+                <line x1="12" y1="15" x2="12" y2="3"/>
+              </svg>
+              Baixar
+            </button>
             <button onClick={() => fetchProducaoDia(dataSelecionada)} className="refresh-button">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <polyline points="23 4 23 10 17 10"/>
@@ -123,10 +157,9 @@ function ProducaoDia() {
         </div>
       </div>
 
-      {/* Resumo */}
       <div className="resumo-cards">
         <div className="resumo-card">
-          <div className="resumo-icon" style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>
+          <div className="resumo-icon" style={{ background: 'linear-gradient(135deg, #eab766ff 0%, #ff9d00ff 100%)' }}>
             <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2">
               <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
               <line x1="9" y1="9" x2="15" y2="9"/>
@@ -151,18 +184,7 @@ function ProducaoDia() {
           </div>
         </div>
 
-        <div className="resumo-card">
-          <div className="resumo-icon" style={{ background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)' }}>
-            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2">
-              <circle cx="12" cy="12" r="10"/>
-              <polyline points="12 6 12 12 16 14"/>
-            </svg>
-          </div>
-          <div className="resumo-content">
-            <div className="resumo-value">{producoes.filter(p => p.progresso > 0 && p.progresso < 80).length}</div>
-            <div className="resumo-label">Em Andamento</div>
-          </div>
-        </div>
+        
 
         <div className="resumo-card">
           <div className="resumo-icon" style={{ background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)' }}>
@@ -174,27 +196,26 @@ function ProducaoDia() {
           </div>
           <div className="resumo-content">
             <div className="resumo-value">{producoes.filter(p => p.progresso === 0).length}</div>
-            <div className="resumo-label">Não Iniciadas</div>
+            <div className="resumo-label">Não Concluídas</div>
           </div>
         </div>
       </div>
 
-      {/* Tabela de Produção */}
-      <div className="producao-table-container">
+      <div className="producao-table-container" ref={tableRef}>
         <table className="producao-table">
           <thead>
             <tr>
-              <th>Projeto</th>
-              <th>Encarregado</th>
-              <th>Título</th>
-              <th>Atividade Programada</th>
-              <th>Locação</th>
-              <th>Cava Real</th>
-              <th>Cava em Rocha</th>
-              <th>Poste Real</th>
-              <th>Progresso</th>
-              <th>Status</th>
-              <th>Observações</th>
+              <th style={{ width: '8%' }}>Projeto</th>
+              <th style={{ width: '10%' }}>Encarregado</th>
+              <th style={{ width: '12%' }}>Título</th>
+              <th style={{ width: '12%' }}>Atividade</th>
+              <th style={{ width: '6%' }}>Locação</th>
+              <th style={{ width: '7%' }}>Cava Real</th>
+              <th style={{ width: '7%' }}>Poste Real</th>
+              <th style={{ width: '10%' }}>Progresso</th>
+              <th style={{ width: '8%' }}>Progresso</th>
+              <th style={{ width: '13%' }}>Status</th>
+              <th style={{ width: '30%' }}>Justificativa</th>
             </tr>
           </thead>
           <tbody>
@@ -211,7 +232,7 @@ function ProducaoDia() {
                   <td>{producao.encarregado}</td>
                   <td className="titulo-cell">{producao.titulo}</td>
                   <td>{producao.atividadeProgramada}</td>
-                  <td className="numeric-cell">{producao.locacao || '-'}</td>
+                  <td className="numeric-cell">{producao.locacao || 0}</td>
                   <td className="numeric-cell">{producao.cavaReal || 0}</td>
                   <td className="numeric-cell">{producao.cavaEmRocha || 0}</td>
                   <td className="numeric-cell">{producao.posteReal || 0}</td>
@@ -237,16 +258,8 @@ function ProducaoDia() {
                     </span>
                   </td>
                   <td className="observacoes-cell">
-                    {producao.evento && (
-                      <div className="observacao-item">
-                        <strong>Evento:</strong> {producao.evento}
-                      </div>
-                    )}
-                    {producao.responsavel && (
-                      <div className="observacao-item">
-                        <strong>Responsável:</strong> {producao.responsavel}
-                      </div>
-                    )}
+                    
+                   
                     {producao.justificativa && (
                       <div className="observacao-item">
                         <strong>Justificativa:</strong> {producao.justificativa}

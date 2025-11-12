@@ -982,7 +982,7 @@ def get_producao_dia():
                 responsavel = ''
                 justificativa = ''
                 progresso = 0
-                status = 'Não Iniciado'
+                status = 'Não Concluído'
 
                 if not dados_realizados.empty:
                     # Filtrar também por atividade programada se possível
@@ -1051,15 +1051,7 @@ def get_producao_dia():
                     except:
                         cava_real = 0
                     
-                    # Coluna 10: CAVA EM ROCHA
-                    try:
-                        cava_em_rocha_val = row_bd.iloc[10]
-                        if pd.notna(cava_em_rocha_val):
-                            cava_em_rocha = float(cava_em_rocha_val) if str(cava_em_rocha_val).replace('.','').replace('-','').replace(' ','').isdigit() else 0
-                        else:
-                            cava_em_rocha = 0
-                    except:
-                        cava_em_rocha = 0
+                    
                     
                     # Coluna 12: POSTE REAL
                     try:
@@ -1071,8 +1063,7 @@ def get_producao_dia():
                     except:
                         poste_real = 0
                     
-                    # Coluna 13: EVENTO
-                    evento = str(row_bd.iloc[13]) if pd.notna(row_bd.iloc[13]) else ''
+                   
                     
                     # Coluna 14: RESPONSÁVEL
                     responsavel = str(row_bd.iloc[14]) if pd.notna(row_bd.iloc[14]) else ''
@@ -1087,19 +1078,19 @@ def get_producao_dia():
                     if 'IMPLANTAÇÃO' in atividade_upper or 'IMPLANTACAO' in atividade_upper:
                         if poste_real > 1:
                             progresso = 100
-                            status = 'CONCLUÍDO CONFORME PROGRAMAÇÃO'
+                            status = 'Concluído'
                         else:
                             progresso = 0
-                            status = 'Não Iniciado'
+                            status = 'Não concluído'
 
                     # 2. ESCAVAÇÃO: se CAVA REAL > 1 OU CAVA EM ROCHA > 1, progresso = 100%, status = "CONCLUÍDO CONFORME PROGRAMAÇÃO"
                     elif 'ESCAVAÇÃO' in atividade_upper or 'ESCAVACAO' in atividade_upper:
                         if cava_real > 1 or cava_em_rocha > 1:
                             progresso = 100
-                            status = 'CONCLUÍDO CONFORME PROGRAMAÇÃO'
+                            status = 'Concluído'
                         else:
                             progresso = 0
-                            status = 'Não Iniciado'
+                            status = 'Não concluído'
 
                     # 3. ENERGIZAÇÃO: se EVENTO = "EXECUTADO" ou "ENERGIZADA", progresso = 100%
                     elif 'ENERGIZAÇÃO' in atividade_upper or 'ENERGIZACAO' in atividade_upper:
@@ -1109,7 +1100,7 @@ def get_producao_dia():
                             status = 'Concluído'
                         else:
                             progresso = 0
-                            status = 'Não Iniciado'
+                            status = 'Não concluído'
 
                     # 4. LOCAÇÃO: se LOCAÇÃO > 1, progresso = 100%, status = "CONCLUÍDA"
                     elif 'LOCAÇÃO' in atividade_upper or 'LOCACAO' in atividade_upper:
@@ -1127,14 +1118,14 @@ def get_producao_dia():
                             
                             if valor_locacao > 1:
                                 progresso = 100
-                                status = 'CONCLUÍDA'
+                                status = 'Concluído'
                             else:
                                 progresso = 0
-                                status = 'Não Iniciado'
+                                status = 'Não Concluído'
                         except Exception as e:
                             print(f"Erro ao converter locação: {str(e)}")
                             progresso = 0
-                            status = 'Não Iniciado'
+                            status = 'Não Concluído'
 
                     # 5. LANÇAMENTO: se justificativa contém "Lançamento" ou "lançou", progresso = 100%
                     elif 'LANÇAMENTO' in atividade_upper or 'LANCAMENTO' in atividade_upper:
@@ -1144,7 +1135,7 @@ def get_producao_dia():
                             status = 'Concluído'
                         else:
                             progresso = 0
-                            status = 'Não Iniciado'
+                            status = 'Não Concluído'
 
                     # 6. Outras atividades: manter lógica padrão
                     else:
@@ -1158,10 +1149,10 @@ def get_producao_dia():
                             elif progresso > 0:
                                 status = 'Iniciado'
                             else:
-                                status = 'Não Iniciado'
+                                status = 'Não concluído'
                         else:
                             progresso = 0
-                            status = 'Não Iniciado'
+                            status = 'Não concluído'
 
                 producao = {
                     'projeto': projeto,
