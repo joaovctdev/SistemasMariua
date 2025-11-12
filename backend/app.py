@@ -941,8 +941,37 @@ def get_producao_dia():
                 if not projeto:  # Pular linhas vazias
                     continue
 
-                # Buscar dados realizados no BD correspondentes ao projeto
-                dados_realizados = df_bd[df_bd.iloc[:, 3] == projeto]  # Coluna 3 (D) do BD tem o projeto
+                # Buscar dados realizados no BD correspondentes ao projeto, data e atividade
+                # Coluna 0 = DATA, Coluna 3 = PROJETO, Coluna 6 = ATIVIDADE PROGRAMADA no BDProgramacao
+                projeto_limpo = str(projeto).strip() if projeto else ''
+                atividade_limpa = str(atividade_programada).strip().upper() if atividade_programada else ''
+                
+                # Converter data do parâmetro para formato de comparação
+                # data_param vem como "08-11-2025", precisa comparar com a coluna DATA do BD
+                # A data pode estar em vários formatos no BD, então vamos fazer comparação flexível
+                data_hoje_formatada = data_hoje  # Formato: DD-MM-YYYY
+                # Extrair dia, mês e ano para comparação
+                partes_data = data_hoje_formatada.split('-')
+                if len(partes_data) == 3:
+                    dia_busca = partes_data[0]
+                    mes_busca = partes_data[1]
+                    ano_busca = partes_data[2]
+                else:
+                    dia_busca = mes_busca = ano_busca = ''
+                
+                # Filtrar por projeto e data
+                mask_projeto = df_bd.iloc[:, 3].astype(str).str.strip() == projeto_limpo
+                
+                # Comparar data de forma flexível (pode estar como DD-MM-YYYY, DD/MM/YYYY, etc)
+                def match_data(data_str):
+                    if pd.isna(data_str):
+                        return False
+                    data_str_clean = str(data_str).strip()
+                    # Verificar se contém dia, mês e ano
+                    return (dia_busca in data_str_clean and mes_busca in data_str_clean and ano_busca in data_str_clean)
+                
+                mask_data = df_bd.iloc[:, 0].apply(match_data)
+                dados_realizados = df_bd[mask_projeto & mask_data]
 
                 # Inicializar valores realizados
                 locacao = ''
@@ -953,69 +982,186 @@ def get_producao_dia():
                 responsavel = ''
                 justificativa = ''
                 progresso = 0
+                status = 'Não Iniciado'
 
                 if not dados_realizados.empty:
-                    # Pegar a linha mais recente (última)
-                    row_bd = dados_realizados.iloc[-1]
+                    # Filtrar também por atividade programada se possível
+                    # Tentar encontrar linha com atividade correspondente (comparação flexível)
+                    atividade_bd = dados_realizados.iloc[:, 6].astype(str).str.strip().str.upper()
+                    
+                    # Comparação flexível: verificar se a atividade do BD contém palavras-chave da atividade programada
+                    # ou vice-versa
+                    atividade_match = pd.Series([False] * len(dados_realizados), index=dados_realizados.index)
+                    
+                    # Palavras-chave para cada tipo de atividade
+                    palavras_chave = {
+                        'ESCAVAÇÃO': ['ESCAVAÇÃO', 'ESCAVACAO', 'ESCAVA'],
+                        'LOCAÇÃO': ['LOCAÇÃO', 'LOCACAO', 'LOCA'],
+                        'IMPLANTAÇÃO': ['IMPLANTAÇÃO', 'IMPLANTACAO', 'IMPLANTA'],
+                        'ENERGIZAÇÃO': ['ENERGIZAÇÃO', 'ENERGIZACAO', 'ENERGIZA'],
+                        'LANÇAMENTO': ['LANÇAMENTO', 'LANCAMENTO', 'LANÇA', 'LANCA']
+                    }
+                    
+                    # Verificar correspondência exata primeiro
+                    atividade_match = atividade_bd == atividade_limpa
+                    
+                    if not atividade_match.any():
+                        # Se não encontrar exato, tentar correspondência por palavras-chave
+                        for idx in dados_realizados.index:
+                            atividade_bd_item = atividade_bd.loc[idx]
+                            # Verificar se alguma palavra-chave da atividade programada está na atividade do BD
+                            for palavra_chave, variacoes in palavras_chave.items():
+                                if palavra_chave in atividade_limpa:
+                                    for variacao in variacoes:
+                                        if variacao in atividade_bd_item:
+                                            atividade_match.loc[idx] = True
+                                            break
+                                    if atividade_match.loc[idx]:
+                                        break
+                    
+                    if atividade_match.any():
+                        # Pegar linha com atividade correspondente
+                        row_bd = dados_realizados[atividade_match].iloc[-1]
+                    else:
+                        # Se não encontrar atividade específica, pegar a última linha do projeto na data
+                        row_bd = dados_realizados.iloc[-1]
 
-                    locacao = str(row_bd.iloc[7]) if pd.notna(row_bd.iloc[7]) else ''
-                    cava_real = float(row_bd.iloc[9]) if pd.notna(row_bd.iloc[9]) else 0
-                    cava_em_rocha = float(row_bd.iloc[10]) if pd.notna(row_bd.iloc[10]) else 0
-                    poste_real = float(row_bd.iloc[12]) if pd.notna(row_bd.iloc[12]) else 0
+                    # Ordem das colunas do BDProgramacao:
+                    # 0=DATA, 1=SUPERVISOR, 2=ENCARREGADO, 3=PROJETO, 4=TITULO, 5=MUNICÍPIO,
+                    # 6=ATIVIDADE PROGRAMADA, 7=LOCAÇÃO, 8=CAVA PREV, 9=CAVA REAL, 10=CAVA EM ROCHA,
+                    # 11=POSTE PREV, 12=POSTE REAL, 13=EVENTO, 14=RESPONSÁVEL, 15=JUSTIFICATIVA
+                    
+                    # Coluna 7: LOCAÇÃO
+                    try:
+                        locacao_val = row_bd.iloc[7]
+                        if pd.notna(locacao_val):
+                            locacao = str(locacao_val)
+                        else:
+                            locacao = ''
+                    except:
+                        locacao = ''
+                    
+                    # Coluna 9: CAVA REAL
+                    try:
+                        cava_real_val = row_bd.iloc[9]
+                        if pd.notna(cava_real_val):
+                            cava_real = float(cava_real_val) if str(cava_real_val).replace('.','').replace('-','').replace(' ','').isdigit() else 0
+                        else:
+                            cava_real = 0
+                    except:
+                        cava_real = 0
+                    
+                    # Coluna 10: CAVA EM ROCHA
+                    try:
+                        cava_em_rocha_val = row_bd.iloc[10]
+                        if pd.notna(cava_em_rocha_val):
+                            cava_em_rocha = float(cava_em_rocha_val) if str(cava_em_rocha_val).replace('.','').replace('-','').replace(' ','').isdigit() else 0
+                        else:
+                            cava_em_rocha = 0
+                    except:
+                        cava_em_rocha = 0
+                    
+                    # Coluna 12: POSTE REAL
+                    try:
+                        poste_real_val = row_bd.iloc[12]
+                        if pd.notna(poste_real_val):
+                            poste_real = float(poste_real_val) if str(poste_real_val).replace('.','').replace('-','').replace(' ','').isdigit() else 0
+                        else:
+                            poste_real = 0
+                    except:
+                        poste_real = 0
+                    
+                    # Coluna 13: EVENTO
                     evento = str(row_bd.iloc[13]) if pd.notna(row_bd.iloc[13]) else ''
+                    
+                    # Coluna 14: RESPONSÁVEL
                     responsavel = str(row_bd.iloc[14]) if pd.notna(row_bd.iloc[14]) else ''
+                    
+                    # Coluna 15: JUSTIFICATIVA
                     justificativa = str(row_bd.iloc[15]) if pd.notna(row_bd.iloc[15]) else ''
 
-                    # Calcular progresso com base na atividade programada
+                    # Calcular progresso e status com base na atividade programada
                     atividade_upper = atividade_programada.upper()
 
-                    # 1. LOCAÇÃO: se locação > 0, progresso = 100%
-                    if 'LOCAÇÃO' in atividade_upper or 'LOCACAO' in atividade_upper:
-                        try:
-                            # Tentar converter locação para float
-                            valor_locacao = float(locacao) if locacao and locacao != '' and locacao != 'nan' else 0
-                            if valor_locacao > 0:
-                                progresso = 100
-                            else:
-                                progresso = 0
-                        except:
-                            progresso = 0
-
-                    # 2. LANÇAMENTO: se na justificativa tiver "Lançamento" ou "Lançou", progresso = 100%
-                    elif 'LANÇAMENTO' in atividade_upper or 'LANCAMENTO' in atividade_upper:
-                        justificativa_upper = justificativa.upper()
-                        if 'LANÇAMENTO' in justificativa_upper or 'LANCAMENTO' in justificativa_upper or 'LANÇOU' in justificativa_upper or 'LANCOU' in justificativa_upper:
+                    # 1. IMPLANTAÇÃO: se POSTE REAL > 1, progresso = 100%, status = "CONCLUÍDO CONFORME PROGRAMAÇÃO"
+                    if 'IMPLANTAÇÃO' in atividade_upper or 'IMPLANTACAO' in atividade_upper:
+                        if poste_real > 1:
                             progresso = 100
+                            status = 'CONCLUÍDO CONFORME PROGRAMAÇÃO'
                         else:
-                            # Se tiver postes realizados, calcular progresso
-                            if poste_real > 0:
-                                progresso = min(100, int((poste_real / 10) * 100))
-                            else:
-                                progresso = 0
+                            progresso = 0
+                            status = 'Não Iniciado'
 
-                    # 3. ENERGIZAÇÃO: se evento for "ENERGIZADA" ou "EXECUTADO", progresso = 100%
+                    # 2. ESCAVAÇÃO: se CAVA REAL > 1 OU CAVA EM ROCHA > 1, progresso = 100%, status = "CONCLUÍDO CONFORME PROGRAMAÇÃO"
+                    elif 'ESCAVAÇÃO' in atividade_upper or 'ESCAVACAO' in atividade_upper:
+                        if cava_real > 1 or cava_em_rocha > 1:
+                            progresso = 100
+                            status = 'CONCLUÍDO CONFORME PROGRAMAÇÃO'
+                        else:
+                            progresso = 0
+                            status = 'Não Iniciado'
+
+                    # 3. ENERGIZAÇÃO: se EVENTO = "EXECUTADO" ou "ENERGIZADA", progresso = 100%
                     elif 'ENERGIZAÇÃO' in atividade_upper or 'ENERGIZACAO' in atividade_upper:
                         evento_upper = evento.upper()
-                        if 'ENERGIZADA' in evento_upper or 'EXECUTADO' in evento_upper:
+                        if 'EXECUTADO' in evento_upper or 'ENERGIZADA' in evento_upper:
                             progresso = 100
+                            status = 'Concluído'
                         else:
                             progresso = 0
+                            status = 'Não Iniciado'
 
-                    # 4. IMPLANTAÇÃO: baseado em postes e cavas realizados
-                    elif 'IMPLANTAÇÃO' in atividade_upper or 'IMPLANTACAO' in atividade_upper:
-                        total_realizado = cava_real + cava_em_rocha + poste_real
-                        if total_realizado > 0:
-                            progresso = min(100, int((total_realizado / 15) * 100))  # Assumindo meta de 15
+                    # 4. LOCAÇÃO: se LOCAÇÃO > 1, progresso = 100%, status = "CONCLUÍDA"
+                    elif 'LOCAÇÃO' in atividade_upper or 'LOCACAO' in atividade_upper:
+                        try:
+                            # Tentar converter locação para float (coluna 7)
+                            if locacao and locacao != '' and locacao != 'nan':
+                                # Remover espaços e tentar converter
+                                locacao_limpa = str(locacao).replace(' ', '').strip()
+                                if locacao_limpa.replace('.','').replace('-','').isdigit():
+                                    valor_locacao = float(locacao_limpa)
+                                else:
+                                    valor_locacao = 0
+                            else:
+                                valor_locacao = 0
+                            
+                            if valor_locacao > 1:
+                                progresso = 100
+                                status = 'CONCLUÍDA'
+                            else:
+                                progresso = 0
+                                status = 'Não Iniciado'
+                        except Exception as e:
+                            print(f"Erro ao converter locação: {str(e)}")
+                            progresso = 0
+                            status = 'Não Iniciado'
+
+                    # 5. LANÇAMENTO: se justificativa contém "Lançamento" ou "lançou", progresso = 100%
+                    elif 'LANÇAMENTO' in atividade_upper or 'LANCAMENTO' in atividade_upper:
+                        justificativa_upper = justificativa.upper() if justificativa else ''
+                        if 'LANÇAMENTO' in justificativa_upper or 'LANCAMENTO' in justificativa_upper or 'LANÇOU' in justificativa_upper or 'LANCOU' in justificativa_upper:
+                            progresso = 100
+                            status = 'Concluído'
                         else:
                             progresso = 0
+                            status = 'Não Iniciado'
 
-                    # 5. Outras atividades: baseado nos valores realizados
+                    # 6. Outras atividades: manter lógica padrão
                     else:
                         total_realizado = cava_real + cava_em_rocha + poste_real
                         if total_realizado > 0:
                             progresso = min(100, int((total_realizado / 10) * 100))
+                            if progresso >= 80:
+                                status = 'Concluído'
+                            elif progresso >= 50:
+                                status = 'Em Andamento'
+                            elif progresso > 0:
+                                status = 'Iniciado'
+                            else:
+                                status = 'Não Iniciado'
                         else:
                             progresso = 0
+                            status = 'Não Iniciado'
 
                 producao = {
                     'projeto': projeto,
@@ -1030,7 +1176,8 @@ def get_producao_dia():
                     'evento': evento,
                     'responsavel': responsavel,
                     'justificativa': justificativa,
-                    'progresso': progresso
+                    'progresso': progresso,
+                    'status': status
                 }
 
                 producoes.append(producao)

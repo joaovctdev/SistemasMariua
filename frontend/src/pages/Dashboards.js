@@ -290,18 +290,41 @@ function Dashboards() {
     }
 
     // Agrupar postes realizados por encarregado (equipe)
-    // Desconsiderar VANDERLEI MENEZES, WESLEI REIS, JOSÉ ROBERTO e WASHINGTON
+    // Desconsiderar VANDERLEI MENEZES, WESLEI REIS, JOSÉ ROBERTO, WASHINGTON
+    // e também RETRO - WESLEI REIS, RETRO- VANDERLEI MENESES, RETRO - VAGNO
+    const encarregadosExcluidos = [
+      'VANDERLEI MENEZES',
+      'WESLEI REIS',
+      'JOSÉ ROBERTO',
+      'WASHINGTON',
+      'RETRO - WESLEI REIS',
+      'RETRO- WESLEI REIS',
+      'RETRO - VANDERLEI MENESES',
+      'RETRO- VANDERLEI MENESES',
+      'RETRO - VAGNO',
+      'RETRO- VAGNO'
+    ];
+    
     const agrupado = {};
     dadosParaGrafico.forEach(d => {
-      if (d.encarregado && d.encarregado !== 'nan' &&
-          d.encarregado !== 'VANDERLEI MENEZES' &&
-          d.encarregado !== 'WESLEI REIS' &&
-          d.encarregado !== 'JOSÉ ROBERTO' &&
-          d.encarregado !== 'WASHINGTON') {
-        if (!agrupado[d.encarregado]) {
-          agrupado[d.encarregado] = 0;
+      if (d.encarregado && d.encarregado !== 'nan') {
+        const encarregadoUpper = d.encarregado.toUpperCase().trim();
+        // Verificar se o encarregado está na lista de exclusões
+        const deveExcluir = encarregadosExcluidos.some(excluido => 
+          encarregadoUpper === excluido.toUpperCase().trim() ||
+          encarregadoUpper.includes('RETRO') && (
+            encarregadoUpper.includes('WESLEI REIS') ||
+            encarregadoUpper.includes('VANDERLEI MENESES') ||
+            encarregadoUpper.includes('VAGNO')
+          )
+        );
+        
+        if (!deveExcluir) {
+          if (!agrupado[d.encarregado]) {
+            agrupado[d.encarregado] = 0;
+          }
+          agrupado[d.encarregado] += d.posteReal;
         }
-        agrupado[d.encarregado] += d.posteReal;
       }
     });
 

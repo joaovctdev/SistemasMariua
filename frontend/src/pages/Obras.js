@@ -12,7 +12,7 @@ import {
 } from 'chart.js';
 import { Bar } from 'react-chartjs-2';
 import 'chartjs-adapter-date-fns';
-import { ptBR } from 'date-fns/locale';
+import { ptBR } from 'date-fns/locale'
 
 ChartJS.register(
   CategoryScale,
@@ -283,6 +283,20 @@ function GanttChart({ obras }) {
     return 'rgba(107, 114, 128, 0.8)';
   };
 
+  // Plugin para remover qualquer renderização automática de texto
+  const pluginRemoverLabels = {
+    id: 'removerLabels',
+    beforeDatasetsDraw(chart) {
+      // Limpar qualquer texto que possa ser renderizado automaticamente
+      const { ctx } = chart;
+      ctx.save();
+    },
+    afterDatasetsDraw(chart) {
+      const { ctx } = chart;
+      ctx.restore();
+    }
+  };
+
   // Plugin customizado para desenhar texto nas barras
   const pluginDesenharTexto = {
     id: 'desenharTextoNasBarra',
@@ -293,8 +307,20 @@ function GanttChart({ obras }) {
         const meta = chart.getDatasetMeta(datasetIndex);
 
         meta.data.forEach((bar, index) => {
+          if (index >= dadosGantt.length) return;
+          
           const projeto = dadosGantt[index].projeto;
           const { x, y, width } = bar;
+
+          // Validar se projeto não é uma data (formato DD/MM/YYYY ou DD/MM/YY)
+          // Também verificar se contém "GMT" ou "Horário" que indica data completa
+          const isData = /^\d{1,2}\/\d{1,2}\/\d{2,4}$/.test(projeto?.trim() || '');
+          const isDataCompleta = projeto?.includes('GMT') || projeto?.includes('Horário') || projeto?.includes('Nov') || projeto?.includes('2025');
+          
+          // Não desenhar se for uma data ou se projeto estiver vazio
+          if (!projeto || isData || isDataCompleta || projeto.trim() === '' || projeto === 'nan') {
+            return;
+          }
 
           // Configurar texto
           ctx.save();
@@ -322,6 +348,7 @@ function GanttChart({ obras }) {
   };
 
   // Preparar dados para Chart.js
+  // Para gráfico de Gantt horizontal, usar ponto inicial (x) com timestamp
   const data = {
     labels: dadosGantt.map(d => d.label),
     datasets: [{
@@ -336,7 +363,11 @@ function GanttChart({ obras }) {
       borderRadius: 6,
       borderSkipped: false,
       barPercentage: 0.8,
-      categoryPercentage: 0.9
+      categoryPercentage: 0.9,
+      // Desabilitar qualquer renderização automática de labels
+      datalabels: {
+        display: false
+      }
     }]
   };
 
@@ -346,6 +377,9 @@ function GanttChart({ obras }) {
     maintainAspectRatio: false,
     plugins: {
       legend: {
+        display: false
+      },
+      datalabels: {
         display: false
       },
       tooltip: {
@@ -383,6 +417,7 @@ function GanttChart({ obras }) {
           }
         }
       },
+      removerLabels: pluginRemoverLabels,
       desenharTextoNasBarra: pluginDesenharTexto
     },
     scales: {
@@ -395,12 +430,6 @@ function GanttChart({ obras }) {
           displayFormats: {
             month: 'MMM yyyy',
             day: 'dd/MM'
-          },
-          tooltipFormat: 'dd/MM/yyyy'
-        },
-        adapters: {
-          date: {
-            locale: ptBR
           }
         },
         grid: {
@@ -646,11 +675,8 @@ function Obras() {
   const handleUploadProgramacaoDia = async (event) => {
     const file = event.target.files[0];
     if (!file) {
-      console.log('Nenhum arquivo selecionado');
       return;
     }
-
-    console.log('Arquivo selecionado:', file.name, 'Tamanho:', file.size, 'bytes');
 
     // Validar tipo de arquivo
     if (!file.name.endsWith('.xlsx') && !file.name.endsWith('.xls')) {
@@ -663,18 +689,13 @@ function Obras() {
     const formData = new FormData();
     formData.append('file', file);
 
-    console.log('Iniciando upload para:', `${API_URL}/programacao-dia/upload`);
-
     try {
       const response = await fetch(`${API_URL}/programacao-dia/upload`, {
         method: 'POST',
         body: formData
       });
 
-      console.log('Resposta recebida. Status:', response.status);
-
       const data = await response.json();
-      console.log('Dados recebidos:', data);
 
       if (response.ok) {
         setUploadProgress('✅ Upload concluído!');
@@ -682,7 +703,6 @@ function Obras() {
         alert(`✅ Programação do dia carregada com sucesso!\n\nTotal de itens: ${data.total_itens || 0}`);
         // Atualizar programação do dia
         setProgramacaoDia(data.programacao || []);
-        console.log('Programação atualizada:', data.programacao?.length, 'itens');
       } else {
         setUploadProgress(null);
         console.error('Erro no upload:', data);
@@ -1297,8 +1317,8 @@ function Obras() {
 
       <div className="obras-grid">
         {obrasFiltradas.map(obra => {
-          const isAtrasada = obra.obraSemana?.toUpperCase().includes('ATRASADA');
-          const isEnergizada = obra.obraSemana?.toUpperCase().includes('ENERGIZADA');
+          const isAtrasada = obra.obraSemana?.toUpperCase()?.includes('ATRASADA') || false;
+          const isEnergizada = obra.obraSemana?.toUpperCase()?.includes('ENERGIZADA') || false;
 
           return (
             <div

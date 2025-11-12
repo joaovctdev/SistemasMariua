@@ -14,12 +14,12 @@ function ProducaoDia() {
     fetchProducaoDia(dataSelecionada);
   }, [dataSelecionada]);
 
-  const fetchProducaoDia = async (data) => {
+  const fetchProducaoDia = async (dataParam) => {
     setLoading(true);
     setError('');
 
     try {
-      const url = data ? `${API_URL}/producao-dia?data=${data}` : `${API_URL}/producao-dia`;
+      const url = dataParam ? `${API_URL}/producao-dia?data=${dataParam}` : `${API_URL}/producao-dia`;
       const response = await fetch(url);
 
       if (!response.ok) {
@@ -49,7 +49,12 @@ function ProducaoDia() {
     return '#6b7280'; // Cinza
   };
 
-  const getProgressStatus = (progresso) => {
+  const getProgressStatus = (producao) => {
+    // Usar status do backend se disponível, senão calcular baseado no progresso
+    if (producao.status) {
+      return producao.status;
+    }
+    const progresso = producao.progresso || 0;
     if (progresso >= 80) return 'Concluído';
     if (progresso >= 50) return 'Em Andamento';
     if (progresso > 0) return 'Iniciado';
@@ -75,7 +80,7 @@ function ProducaoDia() {
           </svg>
           {error}
         </div>
-        <button onClick={fetchProducaoDia} className="retry-button">Tentar Novamente</button>
+        <button onClick={() => fetchProducaoDia(dataSelecionada)} className="retry-button">Tentar Novamente</button>
       </div>
     );
   }
@@ -228,7 +233,7 @@ function ProducaoDia() {
                       className="status-badge"
                       style={{ backgroundColor: getProgressColor(producao.progresso) }}
                     >
-                      {getProgressStatus(producao.progresso)}
+                      {getProgressStatus(producao)}
                     </span>
                   </td>
                   <td className="observacoes-cell">

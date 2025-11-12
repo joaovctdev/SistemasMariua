@@ -49,7 +49,7 @@ function Home({ currentUser, onNavigate }) {
       {/* MENSAGEM DE BOAS-VINDAS */}
       <div className="welcome-card">
         <h1>Olá, {currentUser}! 👋</h1>
-        <p>Bem-vindo à sua página inicial. Navegue pelo menu abaixo para acessar as diferentes seções.</p>
+        <p>Bem-vindo teste à sua página inicial. Navegue pelo menu abaixo para acessar as diferentes seções.</p>
       </div>
 
       {/* CARDS DE NAVEGAÇÃO */}
