@@ -106,7 +106,6 @@ function Dashboards() {
         agrupado[d.encarregado] += d.posteReal;
       }
     });
-
     const sorted = Object.entries(agrupado).sort((a, b) => b[1] - a[1]); // Removido .slice(0, 10) para mostrar TODOS
 
     return {
@@ -126,10 +125,10 @@ function Dashboards() {
     const agrupado = {};
     dadosFiltrados.forEach(d => {
       if (d.encarregado && d.cavaReal > 0 &&
-          d.encarregado !== 'JOSÉ ROBERTO' &&
-          d.encarregado !== 'WASHINGTON' &&
-          d.encarregado !== 'VANDERLEI MENEZES' &&
-          d.encarregado !== 'WESLEI REIS') {
+          d.encarregado !== 'JOSE-IRC' &&
+          d.encarregado !== 'WASHINGTON-IRC' &&
+          d.encarregado !== 'JAIR-JAC' &&
+          d.encarregado !== 'VALMIR-JAC') {
         if (!agrupado[d.encarregado]) {
           agrupado[d.encarregado] = 0;
         }
@@ -289,20 +288,20 @@ function Dashboards() {
       });
     }
 
-    // Agrupar postes realizados por encarregado (equipe)
-    // Desconsiderar VANDERLEI MENEZES, WESLEI REIS, JOSÉ ROBERTO, WASHINGTON
-    // e também RETRO - WESLEI REIS, RETRO- VANDERLEI MENESES, RETRO - VAGNO
     const encarregadosExcluidos = [
-      'VANDERLEI MENEZES',
-      'WESLEI REIS',
-      'JOSÉ ROBERTO',
-      'WASHINGTON',
-      'RETRO - WESLEI REIS',
-      'RETRO- WESLEI REIS',
-      'RETRO - VANDERLEI MENESES',
-      'RETRO- VANDERLEI MENESES',
-      'RETRO - VAGNO',
-      'RETRO- VAGNO'
+      'MENEZES-IRC',
+      'VAGNO-IRC',
+      'JOSE-IRC',
+      'WASHINGTON-IRC',
+      'WESLEY-IRC',
+      'JOAO-JAC',
+      'OSIMAR-JAC',
+      'TIAGO-JAC',
+      'VALMIR-JAC',
+      'JENILSON-JAC',
+      'JAIR-JAC',
+      'GABRIEL-IRC',
+      'PATRICIO-JAC'
     ];
     
     const agrupado = {};
@@ -833,7 +832,7 @@ function Dashboards() {
             <div style={{ display: 'flex', gap: '10px' }}>
               <div className="chart-filter">
                 <label>
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <svg width="20" height="25" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
                     <line x1="16" y1="2" x2="16" y2="6"/>
                     <line x1="8" y1="2" x2="8" y2="6"/>

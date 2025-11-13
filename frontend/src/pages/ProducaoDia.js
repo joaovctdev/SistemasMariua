@@ -135,6 +135,7 @@ function ProducaoDia() {
               >
             
                 <option value="10-11-2025">10/11/2025</option>
+                <option value="10-11-2025">13/11/2025</option>
               </select>
             </div>
             <button onClick={downloadTableAsImage} className="download-button">
