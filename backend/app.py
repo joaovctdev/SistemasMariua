@@ -33,13 +33,53 @@ if not os.path.exists(PROGRAMACAO_DIA_FOLDER):
 programacao_dia_data = []
 
 def allowed_file(filename):
-    """Verifica se o arquivo tem uma extensão permitida"""
+    """
+    Valida se o arquivo enviado possui extensão permitida (.xlsx ou .xls)
+
+    Args:
+        filename (str): Nome do arquivo a ser verificado
+
+    Returns:
+        bool: True se a extensão for permitida, False caso contrário
+
+    Funcionalidade:
+        - Verifica se o nome do arquivo contém um ponto (.)
+        - Extrai a extensão após o último ponto
+        - Compara com as extensões permitidas definidas em ALLOWED_EXTENSIONS
+        - Usado para garantir que apenas planilhas Excel sejam aceitas no upload
+    """
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in app.config['ALLOWED_EXTENSIONS']
 
 def processar_programacao_dia(caminho_arquivo):
-    """Processa arquivo Excel da programação do dia com estrutura específica"""
+    """
+    Processa arquivo Excel da programação diária de obras e retorna estrutura organizada
+
+    Args:
+        caminho_arquivo (str): Caminho completo do arquivo Excel a ser processado
+
+    Returns:
+        list: Lista de dicionários com os dados da programação diária
+
+    Estrutura do arquivo Excel esperada (8 colunas):
+        - Coluna 0: Data da programação
+        - Coluna 1: Código do Projeto (ex: B-1234567)
+        - Coluna 2: Nome do Supervisor responsável
+        - Coluna 3: Nome do Encarregado da equipe
+        - Coluna 4: Título/descrição da obra
+        - Coluna 5: Município onde a obra está localizada
+        - Coluna 6: Atividade programada para o dia (Locação, Implantação, etc)
+        - Coluna 7: Critério da obra (QLP, QLU, etc)
+
+    Funcionalidade:
+        - Lê arquivo Excel e converte para DataFrame pandas
+        - Itera por cada linha verificando se há dados válidos
+        - Pula linhas vazias (onde projeto está vazio)
+        - Cria objeto JSON para cada linha com estrutura padronizada
+        - Retorna lista completa para ser utilizada pela API
+        - Usado no endpoint /api/programacao-dia/upload
+    """
     try:
-        # Ler Excel
+        # Ler Excel usando pandas
         df = pd.read_excel(caminho_arquivo, header=0)
 
         print(f"📊 Colunas encontradas: {df.columns.tolist()}")
@@ -48,7 +88,7 @@ def processar_programacao_dia(caminho_arquivo):
         programacao = []
 
         for idx, row in df.iterrows():
-            # Verificar se a linha tem dados (pelo menos projeto preenchido)
+            # Verificar se a linha tem dados válidos (pelo menos projeto preenchido)
             if pd.isna(row.iloc[1]) or str(row.iloc[1]).strip() == '':
                 continue  # Pular linhas vazias
 
@@ -910,6 +950,316 @@ def get_obras_programacao():
 
     except Exception as e:
         print(f"Erro ao carregar obras programação: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/dashboard/cavas-por-retro', methods=['GET'])
+def get_cavas_por_retro():
+    """
+    Endpoint: GET /api/dashboard/cavas-por-retro
+
+    Retorna dados de escavações (cavas) realizadas por retroescavadeira para equipes especializadas
+
+    Query Parameters:
+        - mes (opcional): Número do mês (1-12) para filtrar. Default: 'todos'
+        - semana (opcional): Número da semana do mês (1-4/5) para filtrar. Default: 'todos'
+
+    Fonte de Dados:
+        - Arquivo: uploads/BD/MainBD.xlsx (página BD)
+        - Usa coluna 'data_servico' para filtros temporais
+        - Usa coluna 'des_equipe' para identificar equipes
+        - Usa coluna 'des_atividade' para classificar tipos de cava
+        - Usa coluna 'qtd_atividade' para quantificar cavas
+
+    Equipes Monitoradas:
+        - JOAO-JAC, MENEZES-IRC, TIAGO-JAC, VAGNO-IRC, WESLEY-IRC, OSIMAR-JAC
+
+    Tipos de Cava Classificados:
+        - Cava Normal: Escavação em solo comum
+        - Cava com Rompedor: Escavação que requer rompedor hidráulico
+        - Cava em Rocha: Escavação em terreno rochoso
+
+    Retorna:
+        JSON com:
+        - dados: Lista de equipes com totalizações por tipo de cava
+        - detalhes: Registros individuais de cada serviço
+        - filtros_aplicados: Filtros que foram utilizados na consulta
+
+    Usado em:
+        - Dashboard principal para gráfico de "Cavas por Retro"
+        - Mostra produtividade das equipes especializadas em escavação
+    """
+    try:
+        from datetime import datetime, timedelta
+        from flask import request
+
+        # Obter filtros da query string (parâmetros da URL)
+        filtro_mes = request.args.get('mes', 'todos')
+        filtro_semana = request.args.get('semana', 'todos')
+
+        caminho_bd = os.path.join(app.config['UPLOAD_FOLDER'], 'BD', 'MainBD.xlsx')
+
+        if not os.path.exists(caminho_bd):
+            return jsonify({'error': 'Arquivo MainBD.xlsx não encontrado'}), 404
+
+        # Ler a planilha BD do MainBD
+        df = pd.read_excel(caminho_bd, engine='openpyxl')
+
+        # Converter data_servico para formato datetime para permitir filtros
+        df['data_servico'] = pd.to_datetime(df['data_servico'], errors='coerce')
+
+        # Aplicar filtro de mês (se selecionado)
+        if filtro_mes != 'todos':
+            mes_num = int(filtro_mes)
+            df = df[df['data_servico'].dt.month == mes_num]
+
+        # Aplicar filtro de semana (se selecionado e mês também foi selecionado)
+        if filtro_semana and filtro_semana != 'todos' and filtro_semana.strip() != '' and filtro_mes != 'todos':
+            semana_num = int(filtro_semana)
+            mes_num = int(filtro_mes)
+
+            # Calcular intervalo da semana baseado no primeiro dia do mês
+            ano_atual = df['data_servico'].dt.year.mode()[0] if not df.empty else datetime.now().year
+            primeiro_dia_mes = datetime(int(ano_atual), mes_num, 1)
+
+            # Calcular início e fim da semana (7 dias cada semana)
+            inicio_semana = primeiro_dia_mes + timedelta(days=(semana_num - 1) * 7)
+            fim_semana = inicio_semana + timedelta(days=6)
+
+            # Filtrar dados apenas do intervalo da semana
+            df = df[(df['data_servico'] >= inicio_semana) & (df['data_servico'] <= fim_semana)]
+
+        # Equipes especializadas em escavação com retroescavadeira
+        equipes_retro = ['JOAO-JAC', 'MENEZES-IRC', 'TIAGO-JAC', 'VAGNO-IRC', 'WESLEY-IRC', 'OSIMAR-JAC']
+
+        # Inicializar estrutura de dados para cada equipe
+        dados_retro = {}
+        for equipe in equipes_retro:
+            dados_retro[equipe] = {
+                'total_cavas': 0,
+                'cavas_normal': 0,
+                'cavas_rompedor': 0,
+                'cavas_rocha': 0,
+                'registros': []
+            }
+
+        # Processar cada linha do DataFrame
+        for index, row in df.iterrows():
+            try:
+                # Obter nome da equipe e descrição da atividade
+                des_equipe = str(row['des_equipe']).strip().upper() if pd.notna(row['des_equipe']) else ''
+                des_atividade = str(row['des_atividade']).upper() if pd.notna(row['des_atividade']) else ''
+                qtd_atividade = float(row['qtd_atividade']) if pd.notna(row['qtd_atividade']) else 0
+
+                # Verificar se é uma equipe monitorada E se a atividade é de cava com retro
+                if des_equipe in equipes_retro and 'RETRO' in des_atividade and 'CAVA' in des_atividade:
+                    # Classificar tipo de cava pela descrição da atividade
+                    if 'ROMPEDOR' in des_atividade:
+                        dados_retro[des_equipe]['cavas_rompedor'] += qtd_atividade
+                    elif 'ROCHA' in des_atividade:
+                        dados_retro[des_equipe]['cavas_rocha'] += qtd_atividade
+                    elif 'NORMAL' in des_atividade:
+                        dados_retro[des_equipe]['cavas_normal'] += qtd_atividade
+
+                    # Totalizar cavas
+                    dados_retro[des_equipe]['total_cavas'] += qtd_atividade
+
+                    # Armazenar registro detalhado para auditoria
+                    dados_retro[des_equipe]['registros'].append({
+                        'data': str(row['data_servico']) if pd.notna(row['data_servico']) else '',
+                        'atividade': des_atividade,
+                        'quantidade': qtd_atividade,
+                        'localidade': str(row['bairro']) if pd.notna(row['bairro']) else '',
+                        'supervisor': str(row['Supervisor']) if pd.notna(row['Supervisor']) else ''
+                    })
+
+            except Exception as e:
+                print(f"Erro ao processar linha {index}: {str(e)}")
+                continue
+
+        # Preparar resposta com estatísticas agregadas
+        resultado = []
+        for equipe, dados in dados_retro.items():
+            resultado.append({
+                'equipe': equipe,
+                'total_cavas': dados['total_cavas'],
+                'cavas_normal': dados['cavas_normal'],
+                'cavas_rompedor': dados['cavas_rompedor'],
+                'cavas_rocha': dados['cavas_rocha'],
+                'total_registros': len(dados['registros'])
+            })
+
+        return jsonify({
+            'success': True,
+            'dados': resultado,
+            'detalhes': dados_retro,
+            'total_equipes': len(equipes_retro),
+            'filtros_aplicados': {
+                'mes': filtro_mes,
+                'semana': filtro_semana
+            }
+        })
+
+    except Exception as e:
+        print(f"Erro ao carregar cavas por retro: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/dashboard/utd-dados', methods=['GET'])
+def get_utd_dados():
+    """
+    Endpoint: GET /api/dashboard/utd-dados
+
+    Retorna dados consolidados das Unidades de Trabalho Descentralizadas (UTDs) IRECÊ e JACOBINA
+
+    Fonte de Dados:
+        - Arquivo: uploads/BD/MainBD.xlsx
+        - Páginas: 'UTDIRECE' e 'UTDJACOBINA'
+
+    Estrutura do MainBD (21 colunas por página UTD):
+        - pep_obra: Código único do projeto
+        - titulo: Nome/descrição da obra (usado para contagem)
+        - municipio: Cidade onde a obra está localizada
+        - localidade: Bairro/região específica
+        - status: Estado atual da obra (ENERGIZADA, EM EXECUÇÃO, etc)
+        - encarregado: Responsável pela equipe
+        - supervisor: Supervisor da obra
+        - ar_coelba: Agente Regional da COELBA responsável
+        - plan_inv: Planejamento de investimento
+        - criterio: Critério técnico (QLP, QLU, etc)
+        - clientes_prev: Número de clientes atendidos pela obra
+        - postes_imp: Postes implantados
+        - inicio_previsto: Data prevista de início
+        - fim_previsto: Data prevista de conclusão
+        - data_energização: Data real de energização
+        - valor_projeto: Valor total do projeto em R$
+        - latitude/longitude: Coordenadas geográficas
+
+    Retorna:
+        JSON com 3 regiões (irece, jacobina, geral):
+        - total_obras: Contagem de obras pelo campo 'titulo'
+        - obras_energizadas: Obras com status ENERGIZADA
+        - clientes: Soma de clientes_prev
+        - valor_total: Soma de valor_projeto (limpo de formatação brasileira)
+        - obras_por_ar: Dicionário com contagem de obras por AR_COELBA
+
+    Usado em:
+        - Dashboard principal para cards de clientes e valor
+        - Gráfico de obras energizadas por região
+        - Gráfico de distribuição de obras por AR COELBA
+    """
+    try:
+        caminho_mainbd = os.path.join(app.config['UPLOAD_FOLDER'], 'BD', 'MainBD.xlsx')
+
+        if not os.path.exists(caminho_mainbd):
+            return jsonify({'error': 'Arquivo MainBD.xlsx não encontrado'}), 404
+
+        # Ler as duas páginas principais do MainBD (uma para cada UTD)
+        df_irece = pd.read_excel(caminho_mainbd, sheet_name='UTDIRECE', engine='openpyxl')
+        df_jacobina = pd.read_excel(caminho_mainbd, sheet_name='UTDJACOBINA', engine='openpyxl')
+
+        def limpar_valor_moeda(valor):
+            """
+            Converte valores monetários do formato brasileiro para float
+
+            Formatos aceitos:
+                - Float/int direto: 1234.56
+                - Formato BR: R$ 1.234,56
+                - Formato BR sem símbolo: 1.234,56
+
+            Processo:
+                1. Remove "R$" e espaços
+                2. Remove pontos (separadores de milhares)
+                3. Substitui vírgula por ponto (separador decimal)
+                4. Converte para float
+
+            Exemplos:
+                "R$ 116.999,07" -> 116999.07
+                "20073.12" -> 20073.12
+                None -> 0
+            """
+            if pd.isna(valor):
+                return 0
+            if isinstance(valor, (int, float)):
+                return float(valor)
+            # Remover "R$", espaços, pontos (milhares) e substituir vírgula por ponto (decimal)
+            valor_str = str(valor).replace('R$', '').replace(' ', '').replace('.', '').replace(',', '.')
+            try:
+                return float(valor_str)
+            except:
+                return 0
+
+        def processar_regiao(df):
+            """
+            Processa dados de uma região (IRECÊ ou JACOBINA) e retorna métricas agregadas
+
+            Args:
+                df (DataFrame): DataFrame com dados da região
+
+            Returns:
+                dict: Dicionário com métricas totalizadas:
+                    - total_obras: Quantidade total de obras (contadas por titulo não vazio)
+                    - obras_energizadas: Obras com status 'ENERGIZADA'
+                    - clientes: Soma de clientes previstos
+                    - valor_total: Soma total dos valores dos projetos em R$
+                    - obras_por_ar: Quantidade de obras por cada AR_COELBA
+
+            Lógica:
+                - Conta obras pelo campo 'titulo' (mais confiável que contar linhas)
+                - Filtra status que contenha 'ENERGIZADA' (case insensitive)
+                - Converte clientes_prev para numérico (trata erros como 0)
+                - Limpa e soma valor_projeto (trata formato BR)
+                - Agrupa e conta obras por ar_coelba (exclui vazios)
+            """
+            # Contar obras pelo campo titulo (não vazio)
+            total_obras = df['titulo'].notna().sum()
+
+            # Contar obras energizadas (busca case-insensitive por ENERGIZADA no status)
+            obras_energizadas = df[df['status'].str.upper().str.contains('ENERGIZADA', na=False)].shape[0]
+
+            # Somar clientes (converter para numérico, erros viram 0)
+            clientes = pd.to_numeric(df['clientes_prev'], errors='coerce').fillna(0).sum()
+
+            # Somar valor_projeto (limpar formato brasileiro e converter)
+            df_copy = df.copy()
+            df_copy['valor_limpo'] = df_copy['valor_projeto'].apply(limpar_valor_moeda)
+            valor_total = df_copy['valor_limpo'].sum()
+
+            # Contar obras por AR_COELBA (filtrar valores vazios)
+            obras_por_ar = df[df['ar_coelba'].notna() & (df['ar_coelba'] != '')].groupby('ar_coelba').size().to_dict()
+
+            return {
+                'total_obras': int(total_obras),
+                'obras_energizadas': int(obras_energizadas),
+                'clientes': int(clientes),
+                'valor_total': round(float(valor_total), 2),
+                'obras_por_ar': obras_por_ar
+            }
+
+        # Processar cada região
+        dados_irece = processar_regiao(df_irece)
+        dados_jacobina = processar_regiao(df_jacobina)
+
+        # Combinar dados gerais
+        df_geral = pd.concat([df_irece, df_jacobina], ignore_index=True)
+        dados_geral = processar_regiao(df_geral)
+
+        # Preparar resultado
+        resultado = {
+            'irece': dados_irece,
+            'jacobina': dados_jacobina,
+            'geral': dados_geral
+        }
+
+        return jsonify({
+            'success': True,
+            'dados': resultado
+        })
+
+    except Exception as e:
+        print(f"Erro ao carregar dados UTD: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/producao-dia', methods=['GET'])

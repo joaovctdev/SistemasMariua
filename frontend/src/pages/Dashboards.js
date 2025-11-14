@@ -13,16 +13,31 @@ const API_URL = 'http://localhost:5000/api';
 function Dashboards() {
   const [dados, setDados] = useState([]);
   const [obrasData, setObrasData] = useState([]);
+  const [cavasPorRetroData, setCavasPorRetroData] = useState([]);
+  const [utdData, setUtdData] = useState({ clientes: 0, valorTotal: 0 });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [filtroMes, setFiltroMes] = useState('todos');
   const [filtroSupervisor, setFiltroSupervisor] = useState('todos');
+  const [filtroRegiao, setFiltroRegiao] = useState('todos');
   const [filtroMesGrafico, setFiltroMesGrafico] = useState('todos');
   const [filtroSemanaGrafico, setFiltroSemanaGrafico] = useState('todos');
+  const [filtroEquipeRetro, setFiltroEquipeRetro] = useState('todos');
+  const [filtroMesRetro, setFiltroMesRetro] = useState('todos');
+  const [filtroSemanaRetro, setFiltroSemanaRetro] = useState('todos');
+
+  // Filtros de tipo de cava (checkboxes)
+  const [mostrarCavaNormal, setMostrarCavaNormal] = useState(true);
+  const [mostrarCavaRompedor, setMostrarCavaRompedor] = useState(true);
+  const [mostrarCavaRocha, setMostrarCavaRocha] = useState(true);
 
   useEffect(() => {
     carregarDados();
   }, []);
+
+  useEffect(() => {
+    carregarDadosCavas();
+  }, [filtroMesRetro, filtroSemanaRetro]);
 
   const carregarDados = async () => {
     setLoading(true);
@@ -35,17 +50,56 @@ function Dashboards() {
       const response2 = await fetch(`${API_URL}/dashboard/obras-programacao`);
       const data2 = await response2.json();
 
-      if (response1.ok && response2.ok) {
+      // Carregar dados de cavas por retro (sem filtros inicialmente)
+      await carregarDadosCavas();
+
+      // Carregar dados das UTDs (clientes e valores)
+      const response4 = await fetch(`${API_URL}/dashboard/utd-dados`);
+      const data4 = await response4.json();
+
+      if (response1.ok && response2.ok && response4.ok) {
         setDados(data1.dados);
         setObrasData(data2.obras);
+        setUtdData(data4.dados);
       } else {
-        setError(data1.error || data2.error || 'Erro ao carregar dados');
+        setError(data1.error || data2.error || data4.error || 'Erro ao carregar dados');
       }
     } catch (err) {
       console.error('Erro:', err);
       setError('Erro ao conectar com o servidor');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const carregarDadosCavas = async () => {
+    try {
+      // Construir URL com parâmetros de filtro
+      let url = `${API_URL}/dashboard/cavas-por-retro`;
+      const params = new URLSearchParams();
+
+      if (filtroMesRetro !== 'todos') {
+        params.append('mes', filtroMesRetro);
+      }
+
+      if (filtroSemanaRetro !== 'todos' && filtroMesRetro !== 'todos') {
+        params.append('semana', filtroSemanaRetro);
+      }
+
+      if (params.toString()) {
+        url += `?${params.toString()}`;
+      }
+
+      const response = await fetch(url);
+      const data = await response.json();
+
+      if (response.ok) {
+        setCavasPorRetroData(data.dados);
+      } else {
+        console.error('Erro ao carregar cavas:', data.error);
+      }
+    } catch (err) {
+      console.error('Erro ao carregar cavas:', err);
     }
   };
 
@@ -79,6 +133,18 @@ function Dashboards() {
     return null;
   };
 
+  // Função para determinar região baseado no supervisor
+  const getRegiao = (supervisor) => {
+    if (!supervisor || supervisor === 'nan') return '';
+    const supervisorUpper = supervisor.toUpperCase().trim();
+    // Jacobina: GILVANDO e ETEMILSON
+    if (supervisorUpper.includes('GILVANDO') || supervisorUpper.includes('ETEMILSON')) {
+      return 'JACOBINA';
+    }
+    // Demais são Irecê
+    return 'IRECÊ';
+  };
+
   // Aplicar filtros
   const dadosFiltrados = dados.filter(d => {
     if (filtroMes !== 'todos') {
@@ -87,6 +153,10 @@ function Dashboards() {
     }
     if (filtroSupervisor !== 'todos') {
       if (d.supervisor !== filtroSupervisor) return false;
+    }
+    if (filtroRegiao !== 'todos') {
+      const regiao = getRegiao(d.supervisor);
+      if (regiao !== filtroRegiao) return false;
     }
     return true;
   });
@@ -441,6 +511,164 @@ function Dashboards() {
     };
   };
 
+  // 7. Cavas por Retro - Gráfico de barras simples por equipe (uma barra única)
+  const cavasPorRetro = () => {
+    // Filtrar dados conforme seleção de equipe
+    let dadosFiltradosRetro = cavasPorRetroData;
+
+    if (filtroEquipeRetro !== 'todos') {
+      dadosFiltradosRetro = cavasPorRetroData.filter(d => d.equipe === filtroEquipeRetro);
+    }
+
+    const equipes = dadosFiltradosRetro.map(d => d.equipe);
+
+    // Calcular total de cavas baseado nos checkboxes selecionados
+    const totaisCavas = dadosFiltradosRetro.map(d => {
+      let total = 0;
+      if (mostrarCavaNormal) total += d.cavas_normal || 0;
+      if (mostrarCavaRompedor) total += d.cavas_rompedor || 0;
+      if (mostrarCavaRocha) total += d.cavas_rocha || 0;
+      return total;
+    });
+
+    // Meta semanal: 15 cavas por semana
+    const metaSemanal = 15;
+    const metaMensal = 50;
+
+    // Meta atual: se tem filtro de semana ativo, usa meta semanal, senão usa mensal
+    const metaAtual = filtroSemanaRetro !== 'todos' ? metaSemanal : metaMensal;
+    const metaLabel = filtroSemanaRetro !== 'todos'
+      ? 'Meta Semanal (15 cavas)'
+      : 'Meta Mensal (50 cavas)';
+
+    // Gerar label dinâmico baseado nos tipos selecionados
+    const tiposSelecionados = [];
+    if (mostrarCavaNormal) tiposSelecionados.push('Normal');
+    if (mostrarCavaRompedor) tiposSelecionados.push('Rompedor');
+    if (mostrarCavaRocha) tiposSelecionados.push('Rocha');
+
+    const labelCavas = tiposSelecionados.length === 3
+      ? 'Total de Cavas'
+      : `Cavas (${tiposSelecionados.join(', ')})`;
+
+    const datasets = [
+      {
+        type: 'bar',
+        label: labelCavas,
+        data: totaisCavas,
+        backgroundColor: '#0B9E9F',
+        borderColor: 'rgba(11, 158, 159, 1)',
+        borderWidth: 2,
+        borderRadius: 6
+      },
+      {
+        type: 'line',
+        label: metaLabel,
+        data: equipes.map(() => metaAtual),
+        borderColor: '#FFD700',
+        backgroundColor: 'rgba(255, 215, 0, 0.1)',
+        borderWidth: 3,
+        borderDash: [10, 5],
+        pointRadius: 6,
+        pointHoverRadius: 8,
+        pointBackgroundColor: '#FFD700',
+        pointBorderColor: '#FFA500',
+        pointBorderWidth: 2,
+        fill: false,
+        tension: 0
+      }
+    ];
+
+    return {
+      labels: equipes,
+      datasets: datasets
+    };
+  };
+
+  // 8. Obras Energizadas por Supervisor - Gráfico de barras
+  const obrasEnergizadas = () => {
+    const dadosRegiao = filtroRegiao === 'IRECÊ' ? utdData.irece :
+                        filtroRegiao === 'JACOBINA' ? utdData.jacobina :
+                        utdData.geral;
+
+    // Para gráfico por supervisor, precisamos dos dados do endpoint
+    // Por enquanto, mostraremos o total por região
+    const labels = [];
+    const valores = [];
+
+    if (filtroRegiao === 'todos') {
+      labels.push('Irecê', 'Jacobina');
+      valores.push(
+        utdData.irece?.obras_energizadas || 0,
+        utdData.jacobina?.obras_energizadas || 0
+      );
+    } else {
+      labels.push(filtroRegiao === 'IRECÊ' ? 'Irecê' : 'Jacobina');
+      valores.push(dadosRegiao?.obras_energizadas || 0);
+    }
+
+    return {
+      labels: labels,
+      datasets: [{
+        label: 'Obras Energizadas',
+        data: valores,
+        backgroundColor: [
+          'rgba(16, 185, 129, 0.8)',
+          'rgba(59, 130, 246, 0.8)'
+        ],
+        borderColor: [
+          'rgba(16, 185, 129, 1)',
+          'rgba(59, 130, 246, 1)'
+        ],
+        borderWidth: 2
+      }]
+    };
+  };
+
+  // 9. Obras por AR_COELBA - Gráfico de barras horizontal (Top 10)
+  const obrasPorArCoelba = () => {
+    const dadosRegiao = filtroRegiao === 'IRECÊ' ? utdData.irece :
+                        filtroRegiao === 'JACOBINA' ? utdData.jacobina :
+                        utdData.geral;
+
+    const arDict = dadosRegiao?.obras_por_ar || {};
+
+    // Ordenar por quantidade (decrescente) e pegar top 10
+    const sorted = Object.entries(arDict)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 10);
+
+    const labels = sorted.map(([nome]) => {
+      // Encurtar nomes muito longos
+      const partes = nome.split('-');
+      return partes[0].length > 20
+        ? partes[0].substring(0, 17) + '...'
+        : partes[0];
+    });
+
+    const valores = sorted.map(([, qtd]) => qtd);
+
+    // Gradiente de cores do maior para o menor
+    const generateColor = (index, total) => {
+      const intensity = 1 - (index / total) * 0.5; // De 1 até 0.5
+      return `rgba(11, 158, 159, ${intensity})`;
+    };
+
+    const cores = valores.map((_, index) => generateColor(index, valores.length));
+
+    return {
+      labels: labels,
+      datasets: [{
+        label: 'Quantidade de Obras',
+        data: valores,
+        backgroundColor: cores,
+        borderColor: '#0B9E9F',
+        borderWidth: 2,
+        borderRadius: 6
+      }]
+    };
+  };
+
   const supervisoresUnicos = [...new Set(dados.map(d => d.supervisor).filter(s => s && s !== 'nan'))].sort();
 
   const optionsBar = {
@@ -709,7 +937,20 @@ function Dashboards() {
           </select>
         </div>
 
-        
+        <div className="filter-item">
+          <label>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0B9E9F" strokeWidth="2">
+              <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>
+              <circle cx="12" cy="10" r="3"/>
+            </svg>
+            Região:
+          </label>
+          <select value={filtroRegiao} onChange={(e) => setFiltroRegiao(e.target.value)}>
+            <option value="todos">Todas as Regiões</option>
+            <option value="IRECÊ">UTD Irecê</option>
+            <option value="JACOBINA">UTD Jacobina</option>
+          </select>
+        </div>
       </div>
 
       {/* Cards de Resumo */}
@@ -778,6 +1019,46 @@ function Dashboards() {
               {calcularMedias().mediaCavas.toFixed(1)}
             </div>
             <div className="stat-label">Média Cavas/Equipe</div>
+          </div>
+        </div>
+        <div className="stat-card blue">
+          <div className="stat-icon">
+            <svg width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+              <circle cx="9" cy="7" r="4"/>
+              <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+              <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+            </svg>
+          </div>
+          <div className="stat-content">
+            <div className="stat-value">
+              {filtroRegiao === 'IRECÊ' ? utdData.irece?.clientes || 0 :
+               filtroRegiao === 'JACOBINA' ? utdData.jacobina?.clientes || 0 :
+               utdData.geral?.clientes || 0}
+            </div>
+            <div className="stat-label">
+              {filtroRegiao === 'todos' ? 'Total de Clientes' :
+               `Clientes UTD ${filtroRegiao === 'IRECÊ' ? 'Irecê' : 'Jacobina'}`}
+            </div>
+          </div>
+        </div>
+        <div className="stat-card green">
+          <div className="stat-icon">
+            <svg width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="12" y1="1" x2="12" y2="23"/>
+              <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+            </svg>
+          </div>
+          <div className="stat-content">
+            <div className="stat-value">
+              R$ {(filtroRegiao === 'IRECÊ' ? utdData.irece?.valor_total || 0 :
+                   filtroRegiao === 'JACOBINA' ? utdData.jacobina?.valor_total || 0 :
+                   utdData.geral?.valor_total || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}
+            </div>
+            <div className="stat-label">
+              {filtroRegiao === 'todos' ? 'Valor Total dos Projetos' :
+               `Valor UTD ${filtroRegiao === 'IRECÊ' ? 'Irecê' : 'Jacobina'}`}
+            </div>
           </div>
         </div>
       </div>
@@ -883,6 +1164,271 @@ function Dashboards() {
           </div>
           <div className="chart-wrapper">
             <Bar data={postesPorEquipe()} options={optionsBar} />
+          </div>
+        </div>
+
+        <div className="chart-card large">
+          <div className="chart-header-with-filter">
+            <h3>Cavas por Retro - Equipes Especializadas</h3>
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <div className="chart-filter">
+                <label>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                    <circle cx="9" cy="7" r="4"/>
+                    <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+                    <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+                  </svg>
+                  Equipe:
+                </label>
+                <select value={filtroEquipeRetro} onChange={(e) => setFiltroEquipeRetro(e.target.value)}>
+                  <option value="todos">Todas as Equipes</option>
+                  {cavasPorRetroData.map(d => (
+                    <option key={d.equipe} value={d.equipe}>{d.equipe}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="chart-filter">
+                <label>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+                    <line x1="16" y1="2" x2="16" y2="6"/>
+                    <line x1="8" y1="2" x2="8" y2="6"/>
+                    <line x1="3" y1="10" x2="21" y2="10"/>
+                  </svg>
+                  Mês:
+                </label>
+                <select value={filtroMesRetro} onChange={(e) => {
+                  setFiltroMesRetro(e.target.value);
+                  setFiltroSemanaRetro('todos'); // Reset semana ao mudar mês
+                }}>
+                  <option value="todos">Todos os Meses</option>
+                  <option value="1">Janeiro</option>
+                  <option value="2">Fevereiro</option>
+                  <option value="3">Março</option>
+                  <option value="4">Abril</option>
+                  <option value="5">Maio</option>
+                  <option value="6">Junho</option>
+                  <option value="7">Julho</option>
+                  <option value="8">Agosto</option>
+                  <option value="9">Setembro</option>
+                  <option value="10">Outubro</option>
+                  <option value="11">Novembro</option>
+                  <option value="12">Dezembro</option>
+                </select>
+              </div>
+
+              {filtroMesRetro !== 'todos' && (
+                <div className="chart-filter">
+                  <label>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <circle cx="12" cy="12" r="10"/>
+                      <polyline points="12 6 12 12 16 14"/>
+                    </svg>
+                    Semana:
+                  </label>
+                  <select value={filtroSemanaRetro} onChange={(e) => setFiltroSemanaRetro(e.target.value)}>
+                    <option value="todos">Todas as Semanas</option>
+                    {getSemanasDoMes(parseInt(filtroMesRetro)).map((semana, index) => (
+                      <option key={index} value={semana.numero}>{semana.label}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Filtros de Tipo de Cava (Checkboxes) */}
+          <div style={{ display: 'flex', gap: '15px', marginBottom: '15px', flexWrap: 'wrap' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '14px', fontWeight: '600', cursor: 'pointer' }}>
+              <input
+                type="checkbox"
+                checked={mostrarCavaNormal}
+                onChange={(e) => setMostrarCavaNormal(e.target.checked)}
+                style={{ width: '18px', height: '18px', cursor: 'pointer' }}
+              />
+              <span style={{ color: '#0B9E9F' }}>Cava Normal</span>
+            </label>
+
+            <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '14px', fontWeight: '600', cursor: 'pointer' }}>
+              <input
+                type="checkbox"
+                checked={mostrarCavaRompedor}
+                onChange={(e) => setMostrarCavaRompedor(e.target.checked)}
+                style={{ width: '18px', height: '18px', cursor: 'pointer' }}
+              />
+              <span style={{ color: '#F5793D' }}>Cava com Rompedor</span>
+            </label>
+
+            <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '14px', fontWeight: '600', cursor: 'pointer' }}>
+              <input
+                type="checkbox"
+                checked={mostrarCavaRocha}
+                onChange={(e) => setMostrarCavaRocha(e.target.checked)}
+                style={{ width: '18px', height: '18px', cursor: 'pointer' }}
+              />
+              <span style={{ color: '#FF0202' }}>Cava em Rocha</span>
+            </label>
+          </div>
+          <div className="chart-wrapper">
+            <Bar data={cavasPorRetro()} options={{
+              ...optionsBar,
+              scales: {
+                ...optionsBar.scales,
+                y: {
+                  ...optionsBar.scales.y,
+                  title: {
+                    display: true,
+                    text: 'Quantidade de Cavas',
+                    font: {
+                      size: 14,
+                      weight: 'bold'
+                    }
+                  }
+                }
+              },
+              plugins: {
+                ...optionsBar.plugins,
+                legend: {
+                  display: true,
+                  position: 'top',
+                  labels: {
+                    font: {
+                      size: 13,
+                      weight: 'bold'
+                    },
+                    padding: 15,
+                    usePointStyle: true,
+                    pointStyle: 'rect'
+                  }
+                },
+                tooltip: {
+                  mode: 'index',
+                  intersect: false,
+                  backgroundColor: 'rgba(0, 0, 0, 0.9)',
+                  titleFont: {
+                    size: 15,
+                    weight: 'bold'
+                  },
+                  bodyFont: {
+                    size: 14
+                  },
+                  padding: 14,
+                  callbacks: {
+                    footer: (tooltipItems) => {
+                      let sum = 0;
+                      tooltipItems.forEach((item) => {
+                        if (item.dataset.type === 'bar') {
+                          sum += item.parsed.y;
+                        }
+                      });
+                      return 'Total de Cavas: ' + sum;
+                    }
+                  }
+                }
+              }
+            }} />
+          </div>
+        </div>
+
+        {/* Gráfico de Obras Energizadas */}
+        <div className="chart-card">
+          <h3>Obras Energizadas por Região</h3>
+          <div className="chart-wrapper">
+            <Bar data={obrasEnergizadas()} options={{
+              ...optionsBar,
+              plugins: {
+                ...optionsBar.plugins,
+                legend: {
+                  display: false
+                }
+              },
+              scales: {
+                ...optionsBar.scales,
+                y: {
+                  ...optionsBar.scales.y,
+                  title: {
+                    display: true,
+                    text: 'Quantidade de Obras',
+                    font: {
+                      size: 14,
+                      weight: 'bold'
+                    }
+                  }
+                }
+              }
+            }} />
+          </div>
+        </div>
+
+        {/* Gráfico de Obras por AR_COELBA */}
+        <div className="chart-card large">
+          <h3>Top 10 Agentes Regionais COELBA - Distribuição de Obras</h3>
+          <div className="chart-wrapper">
+            <Bar data={obrasPorArCoelba()} options={{
+              indexAxis: 'y',  // Barras horizontais
+              responsive: true,
+              maintainAspectRatio: false,
+              plugins: {
+                legend: {
+                  display: false
+                },
+                tooltip: {
+                  backgroundColor: 'rgba(0, 0, 0, 0.9)',
+                  titleFont: {
+                    size: 14,
+                    weight: 'bold'
+                  },
+                  bodyFont: {
+                    size: 13
+                  },
+                  padding: 12,
+                  callbacks: {
+                    label: function(context) {
+                      const value = context.parsed.x || 0;
+                      return `Obras: ${value}`;
+                    }
+                  }
+                },
+                datalabels: {
+                  anchor: 'end',
+                  align: 'right',
+                  formatter: (value) => value,
+                  color: '#1f2937',
+                  font: {
+                    size: 11,
+                    weight: 'bold'
+                  }
+                }
+              },
+              scales: {
+                x: {
+                  beginAtZero: true,
+                  title: {
+                    display: true,
+                    text: 'Quantidade de Obras',
+                    font: {
+                      size: 13,
+                      weight: 'bold'
+                    }
+                  },
+                  ticks: {
+                    font: {
+                      size: 11
+                    }
+                  }
+                },
+                y: {
+                  ticks: {
+                    font: {
+                      size: 11,
+                      weight: 'bold'
+                    }
+                  }
+                }
+              }
+            }} />
           </div>
         </div>
       </div>
