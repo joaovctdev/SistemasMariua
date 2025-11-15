@@ -1,0 +1,505 @@
+/* src/styles/charts.css */
+/* Estilos globais para componentes de visualização */
+
+/* ========================================
+   ANIMAÇÕES
+   ======================================== */
+
+@keyframes shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideInRight {
+  from {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ========================================
+   KPI CARDS
+   ======================================== */
+
+.kpi-card {
+  animation: fadeIn 0.3s ease-out;
+  transition: all 0.3s ease;
+}
+
+.kpi-card:hover {
+  transform: scale(1.02);
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+}
+
+.kpi-card-grid {
+  display: grid;
+  gap: 20px;
+}
+
+/* Mobile */
+@media (max-width: 767px) {
+  .kpi-card-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Tablet */
+@media (min-width: 768px) and (max-width: 1023px) {
+  .kpi-card-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* Desktop */
+@media (min-width: 1024px) and (max-width: 1439px) {
+  .kpi-card-grid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+/* Wide Desktop */
+@media (min-width: 1440px) {
+  .kpi-card-grid {
+    grid-template-columns: repeat(6, 1fr);
+  }
+}
+
+/* ========================================
+   CHART CONTAINERS
+   ======================================== */
+
+.chart-container {
+  animation: fadeIn 0.5s ease-out;
+  background: #FFFFFF;
+  border-radius: 12px;
+  padding: 20px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  border: 1px solid #E5E7EB;
+  transition: box-shadow 0.3s ease;
+}
+
+.chart-container:hover {
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.15);
+}
+
+.chart-grid {
+  display: grid;
+  gap: 20px;
+}
+
+/* Mobile */
+@media (max-width: 767px) {
+  .chart-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .chart-container {
+    padding: 15px;
+  }
+}
+
+/* Tablet */
+@media (min-width: 768px) and (max-width: 1023px) {
+  .chart-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* Desktop */
+@media (min-width: 1024px) {
+  .chart-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .chart-full-width {
+    grid-column: 1 / -1;
+  }
+}
+
+/* ========================================
+   LOADING STATES
+   ======================================== */
+
+.loading-skeleton {
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+.skeleton-shimmer {
+  background: linear-gradient(
+    90deg,
+    #F3F4F6 25%,
+    #E5E7EB 50%,
+    #F3F4F6 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+.loading-spinner {
+  border: 3px solid #E5E7EB;
+  border-top-color: #00989E;
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  animation: spin 1s linear infinite;
+  margin: 20px auto;
+}
+
+/* ========================================
+   SECTION HEADERS
+   ======================================== */
+
+.section-header {
+  background: linear-gradient(135deg, #00989E 0%, #4FB8BC 100%);
+  color: #FFFFFF;
+  border-radius: 12px;
+  padding: 24px;
+  margin-bottom: 24px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  animation: slideInRight 0.4s ease-out;
+}
+
+.section-header h2 {
+  margin: 0 0 8px 0;
+  font-size: 1.75rem;
+  font-weight: 700;
+}
+
+.section-header p {
+  margin: 0;
+  opacity: 0.9;
+  font-size: 0.95rem;
+}
+
+/* ========================================
+   FILTERS
+   ======================================== */
+
+.filter-panel {
+  background: #FFFFFF;
+  border-radius: 8px;
+  padding: 16px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  border: 1px solid #E5E7EB;
+  margin-bottom: 20px;
+  animation: fadeIn 0.3s ease-out;
+}
+
+.filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+}
+
+.filter-input {
+  padding: 8px 12px;
+  border: 1px solid #D1D5DB;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  transition: border-color 0.2s;
+}
+
+.filter-input:focus {
+  outline: none;
+  border-color: #00989E;
+  box-shadow: 0 0 0 3px rgba(0, 152, 158, 0.1);
+}
+
+.filter-button {
+  padding: 8px 16px;
+  background: #00989E;
+  color: #FFFFFF;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.filter-button:hover {
+  background: #007a7f;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.filter-button:active {
+  transform: translateY(0);
+}
+
+.filter-button-secondary {
+  background: #6B7280;
+}
+
+.filter-button-secondary:hover {
+  background: #4B5563;
+}
+
+/* ========================================
+   TOOLTIPS CUSTOMIZADOS
+   ======================================== */
+
+.custom-tooltip {
+  background: rgba(0, 0, 0, 0.9);
+  color: #FFFFFF;
+  padding: 12px;
+  border-radius: 6px;
+  border: 1px solid #00989E;
+  font-size: 0.875rem;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+  pointer-events: none;
+  z-index: 1000;
+}
+
+.custom-tooltip-title {
+  font-weight: 700;
+  margin-bottom: 6px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.custom-tooltip-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 4px 0;
+}
+
+.custom-tooltip-color {
+  width: 12px;
+  height: 12px;
+  border-radius: 2px;
+}
+
+/* ========================================
+   BADGES E STATUS
+   ======================================== */
+
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.status-success {
+  background: #D1FAE5;
+  color: #065F46;
+}
+
+.status-warning {
+  background: #FEF3C7;
+  color: #92400E;
+}
+
+.status-danger {
+  background: #FEE2E2;
+  color: #991B1B;
+}
+
+.status-info {
+  background: #DBEAFE;
+  color: #1E40AF;
+}
+
+/* ========================================
+   EXPORT BUTTONS
+   ======================================== */
+
+.export-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background: #FFFFFF;
+  color: #00989E;
+  border: 2px solid #00989E;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.export-button:hover {
+  background: #00989E;
+  color: #FFFFFF;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 6px rgba(0, 152, 158, 0.3);
+}
+
+.export-button svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* ========================================
+   MODALS
+   ======================================== */
+
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  animation: fadeIn 0.2s ease-out;
+}
+
+.modal-content {
+  background: #FFFFFF;
+  border-radius: 12px;
+  padding: 24px;
+  max-width: 600px;
+  width: 90%;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.3);
+  animation: slideInRight 0.3s ease-out;
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid #E5E7EB;
+}
+
+.modal-title {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #111827;
+  margin: 0;
+}
+
+.modal-close {
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: #F3F4F6;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 1.25rem;
+  color: #6B7280;
+  transition: all 0.2s;
+}
+
+.modal-close:hover {
+  background: #E5E7EB;
+  color: #111827;
+}
+
+/* ========================================
+   RESPONSIVE UTILITIES
+   ======================================== */
+
+.hide-mobile {
+  display: block;
+}
+
+.show-mobile {
+  display: none;
+}
+
+@media (max-width: 767px) {
+  .hide-mobile {
+    display: none;
+  }
+
+  .show-mobile {
+    display: block;
+  }
+}
+
+/* ========================================
+   SCROLLBAR CUSTOMIZADO
+   ======================================== */
+
+.custom-scrollbar::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: #F3F4F6;
+  border-radius: 4px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #00989E;
+  border-radius: 4px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #007a7f;
+}
+
+/* ========================================
+   PRINT STYLES
+   ======================================== */
+
+@media print {
+  .no-print {
+    display: none !important;
+  }
+
+  .chart-container {
+    page-break-inside: avoid;
+    box-shadow: none;
+    border: 1px solid #E5E7EB;
+  }
+
+  .kpi-card {
+    page-break-inside: avoid;
+  }
+}
